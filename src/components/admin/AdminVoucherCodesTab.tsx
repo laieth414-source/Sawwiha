@@ -34,6 +34,35 @@ interface AdminVoucherCodesTabProps {
   plans: PlatformPlan[];
 }
 
+const safeDateSlice = (val: unknown, length = 10): string => {
+  if (!val) return '—';
+  if (typeof val === 'string') return val.slice(0, length);
+  try {
+    if (typeof val === 'object' && val !== null && 'toDate' in val && typeof (val as { toDate: () => Date }).toDate === 'function') {
+      return (val as { toDate: () => Date }).toDate().toISOString().slice(0, length);
+    }
+    const d = new Date(val as string | number | Date);
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, length);
+  } catch {
+    return '—';
+  }
+  return String(val).slice(0, length);
+};
+
+const safeFormatFullDate = (val: unknown): string => {
+  if (!val) return '—';
+  try {
+    if (typeof val === 'object' && val !== null && 'toDate' in val && typeof (val as { toDate: () => Date }).toDate === 'function') {
+      return (val as { toDate: () => Date }).toDate().toLocaleString('ar-SA');
+    }
+    const d = new Date(val as string | number | Date);
+    if (!isNaN(d.getTime())) return d.toLocaleString('ar-SA');
+  } catch {
+    return '—';
+  }
+  return String(val);
+};
+
 export const AdminVoucherCodesTab: React.FC<AdminVoucherCodesTabProps> = ({ plans }) => {
   const { user, isOwner } = useAuth();
 
@@ -655,7 +684,7 @@ export const AdminVoucherCodesTab: React.FC<AdminVoucherCodesTabProps> = ({ plan
 
                       {/* Created At */}
                       <td className="py-3.5 px-4 text-slate-500 text-[11px]">
-                        <div>{c.createdAt.slice(0, 10)}</div>
+                        <div>{safeDateSlice(c.createdAt)}</div>
                         <div className="text-[10px] text-slate-400 truncate max-w-[120px]">{c.createdBy}</div>
                       </td>
 
@@ -668,11 +697,11 @@ export const AdminVoucherCodesTab: React.FC<AdminVoucherCodesTabProps> = ({ plan
                               <span>{c.redeemedByEmail || c.redeemedBy || 'مستخدم'}</span>
                             </div>
                             <div className="text-[10px] text-slate-500">
-                              تفعيل: {c.redeemedAt?.slice(0, 10) || '—'}
+                              تفعيل: {safeDateSlice(c.redeemedAt)}
                             </div>
                             {c.expiresAt && (
                               <div className="text-[10px] text-amber-700 font-semibold">
-                                ينتهي: {c.expiresAt.slice(0, 10)}
+                                ينتهي: {safeDateSlice(c.expiresAt)}
                               </div>
                             )}
                           </div>
@@ -853,11 +882,11 @@ export const AdminVoucherCodesTab: React.FC<AdminVoucherCodesTabProps> = ({ plan
               <div className="border border-slate-100 rounded-xl divide-y divide-slate-100 text-xs bg-slate-50/60">
                 <div className="p-2.5 flex items-center justify-between">
                   <span className="text-slate-500">تاريخ الإنشاء:</span>
-                  <span className="font-semibold text-slate-800">{new Date(selectedCodeForModal.createdAt).toLocaleString('ar-SA')}</span>
+                  <span className="font-semibold text-slate-800">{safeFormatFullDate(selectedCodeForModal.createdAt)}</span>
                 </div>
                 <div className="p-2.5 flex items-center justify-between">
                   <span className="text-slate-500">أنشئ بواسطة:</span>
-                  <span className="font-mono text-slate-800 text-[11px]">{selectedCodeForModal.createdBy}</span>
+                  <span className="font-mono text-slate-800 text-[11px]">{selectedCodeForModal.createdBy || 'إدارة المنصة'}</span>
                 </div>
                 {selectedCodeForModal.status === 'redeemed' && (
                   <>
@@ -868,13 +897,13 @@ export const AdminVoucherCodesTab: React.FC<AdminVoucherCodesTabProps> = ({ plan
                     {selectedCodeForModal.redeemedAt && (
                       <div className="p-2.5 flex items-center justify-between">
                         <span className="text-slate-500">تاريخ التفعيل:</span>
-                        <span className="font-semibold text-slate-800">{new Date(selectedCodeForModal.redeemedAt).toLocaleString('ar-SA')}</span>
+                        <span className="font-semibold text-slate-800">{safeFormatFullDate(selectedCodeForModal.redeemedAt)}</span>
                       </div>
                     )}
                     {selectedCodeForModal.expiresAt && (
                       <div className="p-2.5 flex items-center justify-between">
                         <span className="text-slate-500">تاريخ انتهاء الاشتراك:</span>
-                        <span className="font-bold text-amber-700">{new Date(selectedCodeForModal.expiresAt).toLocaleDateString('ar-SA')}</span>
+                        <span className="font-bold text-amber-700">{safeFormatFullDate(selectedCodeForModal.expiresAt)}</span>
                       </div>
                     )}
                   </>

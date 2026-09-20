@@ -190,13 +190,75 @@ export async function createSubscriptionVoucherCodes(params: {
 }
 
 /**
+ * Normalize raw Firestore document data to a safe SubscriptionVoucherCode
+ */
+export function normalizeVoucherDoc(data: Record<string, any>, fallbackId = ''): SubscriptionVoucherCode {
+  let createdAtStr = new Date().toISOString();
+  if (data?.createdAt) {
+    if (typeof data.createdAt === 'string') {
+      createdAtStr = data.createdAt;
+    } else if (typeof data.createdAt === 'object' && 'toDate' in data.createdAt) {
+      try {
+        createdAtStr = data.createdAt.toDate().toISOString();
+      } catch {
+        createdAtStr = new Date().toISOString();
+      }
+    }
+  }
+
+  let redeemedAtStr: string | undefined = undefined;
+  if (data?.redeemedAt) {
+    if (typeof data.redeemedAt === 'string') {
+      redeemedAtStr = data.redeemedAt;
+    } else if (typeof data.redeemedAt === 'object' && 'toDate' in data.redeemedAt) {
+      try {
+        redeemedAtStr = data.redeemedAt.toDate().toISOString();
+      } catch {
+        redeemedAtStr = undefined;
+      }
+    }
+  }
+
+  let expiresAtStr: string | undefined = undefined;
+  if (data?.expiresAt) {
+    if (typeof data.expiresAt === 'string') {
+      expiresAtStr = data.expiresAt;
+    } else if (typeof data.expiresAt === 'object' && 'toDate' in data.expiresAt) {
+      try {
+        expiresAtStr = data.expiresAt.toDate().toISOString();
+      } catch {
+        expiresAtStr = undefined;
+      }
+    }
+  }
+
+  return {
+    id: data?.id || fallbackId,
+    code: String(data?.code || ''),
+    planId: String(data?.planId || ''),
+    planName: String(data?.planName || 'خطة المنصة'),
+    planSlug: String(data?.planSlug || data?.planId || 'plan'),
+    durationMonths: Number(data?.durationMonths) || 1,
+    durationLabel: String(data?.durationLabel || 'شهر واحد'),
+    status: (['unused', 'redeemed', 'cancelled'].includes(data?.status) ? data.status : 'unused') as 'unused' | 'redeemed' | 'cancelled',
+    createdAt: createdAtStr,
+    createdBy: String(data?.createdBy || ''),
+    redeemedBy: data?.redeemedBy ? String(data.redeemedBy) : undefined,
+    redeemedByEmail: data?.redeemedByEmail ? String(data.redeemedByEmail) : undefined,
+    redeemedAt: redeemedAtStr,
+    expiresAt: expiresAtStr,
+    notes: data?.notes ? String(data.notes) : undefined,
+  };
+}
+
+/**
  * Real-time listener for subscription codes collection
  */
 export function subscribeToSubscriptionCodes(
   callback: (codes: SubscriptionVoucherCode[]) => void
 ): () => void {
   // Emit locally cached codes first for instant UI response
-  const initialCached = getCachedVouchers();
+  const initialCached = getCachedVouchers().map((c) => normalizeVoucherDoc(c, c.id));
   if (initialCached.length > 0) {
     callback(initialCached);
   }
@@ -206,21 +268,21 @@ export function subscribeToSubscriptionCodes(
   return onSnapshot(
     q,
     (snap) => {
-      const list = snap.docs.map((d) => d.data() as SubscriptionVoucherCode);
+      const list = snap.docs.map((d) => normalizeVoucherDoc(d.data(), d.id));
       saveCachedVouchers(list);
-      const combined = getCachedVouchers();
+      const combined = getCachedVouchers().map((c) => normalizeVoucherDoc(c, c.id));
       callback(combined.length > 0 ? combined : list);
     },
     (err) => {
       console.warn('Subscription codes listener warning:', err);
       // Fallback one-time fetch or cached
       getDocs(CODES_COLLECTION).then((s) => {
-        const list = s.docs.map((d) => d.data() as SubscriptionVoucherCode);
+        const list = s.docs.map((d) => normalizeVoucherDoc(d.data(), d.id));
         saveCachedVouchers(list);
-        callback(getCachedVouchers());
+        callback(getCachedVouchers().map((c) => normalizeVoucherDoc(c, c.id)));
       }).catch((fetchErr) => {
         console.warn('Subscription codes fallback fetch warning:', fetchErr);
-        callback(getCachedVouchers());
+        callback(getCachedVouchers().map((c) => normalizeVoucherDoc(c, c.id)));
       });
     }
   );
@@ -440,16 +502,19 @@ export function exportSubscriptionCodesToCSV(codes: SubscriptionVoucherCode[]): 
   const rows = codes.map((c) => {
     const statusArabic =
       c.status === 'unused' ? 'متاح' : c.status === 'redeemed' ? 'مستخدم' : 'ملغى';
+    const createdAtSafe = c.createdAt ? String(c.createdAt).slice(0, 10) : '—';
+    const redeemedAtSafe = c.redeemedAt ? String(c.redeemedAt).slice(0, 10) : '—';
+    const expiresAtSafe = c.expiresAt ? String(c.expiresAt).slice(0, 10) : '—';
     return [
       `"${c.code}"`,
       `"${c.planName}"`,
       `"${c.durationLabel}"`,
       `"${statusArabic}"`,
-      `"${c.createdAt.slice(0, 10)}"`,
+      `"${createdAtSafe}"`,
       `"${c.createdBy}"`,
       `"${c.redeemedByEmail || '—'}"`,
-      `"${c.redeemedAt ? c.redeemedAt.slice(0, 10) : '—'}"`,
-      `"${c.expiresAt ? c.expiresAt.slice(0, 10) : '—'}"`,
+      `"${redeemedAtSafe}"`,
+      `"${expiresAtSafe}"`,
     ].join(',');
   });
 

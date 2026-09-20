@@ -215,13 +215,13 @@ export const PricingView: React.FC<PricingViewProps> = ({
               <div>
                 <span className="text-emerald-700/80 block text-[11px]">تاريخ البداية</span>
                 <span className="font-bold text-slate-900">
-                  {redeemSuccess.subscription.startDate.slice(0, 10)}
+                  {redeemSuccess.subscription.startDate ? String(redeemSuccess.subscription.startDate).slice(0, 10) : '—'}
                 </span>
               </div>
               <div>
                 <span className="text-emerald-700/80 block text-[11px]">تاريخ الانتهاء</span>
                 <span className="font-bold text-slate-900">
-                  {redeemSuccess.subscription.endDate ? redeemSuccess.subscription.endDate.slice(0, 10) : 'غير محدد'}
+                  {redeemSuccess.subscription.endDate ? String(redeemSuccess.subscription.endDate).slice(0, 10) : 'غير محدد'}
                 </span>
               </div>
               <div>
