@@ -3,6 +3,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+import {
+  buildComprehensiveSiteHtml,
+  sanitizeAndValidateGeneratedHtml,
+  detectArchetype,
+} from './server/siteGenerator';
 
 dotenv.config();
 
@@ -46,12 +51,13 @@ async function generateContentWithResilience(
     contents: any[];
     config?: any;
   },
-  taskName: string = 'Gemini Task'
+  taskName: string = 'Gemini Task',
+  timeoutMs: number = 40000
 ): Promise<string | null> {
   const preferredFastModels = [
+    'gemini-3.8-flash',
     'gemini-3.1-flash-lite',
     'gemini-flash-latest',
-    'gemini-3.8-flash',
   ];
 
   const candidateModels =
@@ -68,9 +74,9 @@ async function generateContentWithResilience(
         config: generateParams.config,
       });
 
-      // 14-second guard timeout per candidate model
+      // Configurable guard timeout per candidate model
       const timeoutPromise = new Promise<{ text?: string }>((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), 14000)
+        setTimeout(() => reject(new Error('timeout')), timeoutMs)
       );
 
       const response = await Promise.race([generatePromise, timeoutPromise]);
@@ -244,48 +250,73 @@ app.post('/api/ai/generate', async (req, res) => {
     const client = getGeminiClient();
 
     if (client) {
-      const systemInstruction = `${aiConfig?.systemInstruction || 'أنت مهندس البرمجيات والخبير البصري في منصة «سَوّيها».'}
-أنت الآن مسؤول عن بناء موقع إلكتروني حقيقي متكامل ورفيع المستوى بناءً على فكرة المستخدم والتحليل المعتمد.
+      const systemInstruction = `${aiConfig?.systemInstruction || 'أنت مهندس البرمجيات والخبير البصري في منصة «سَوّيها»، مساوٍ في المعايير لأقوى مولدات المواقع في Google AI Studio.'}
+أنت تبني موقعاً إلكترونياً حقيقياً متكاملاً وفائق الجودة ومكتمل الأقسام والمحتوى والخدمات (وليس مجرد Demo أو Hero وبضع بطاقات).
 
-شروط الكود الصارمة:
-1. أنتج كود HTML5 كامل ونقي يبدأ بـ <!DOCTYPE html> ويحتوي على <html lang="ar" dir="rtl"> و<head> و<body> كاملين.
-2. استخدم مكتبة Tailwind CSS الحديثة عبر الرابط التالي في الـ <head>:
-   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-3. استخدم خطوط عربية جميلة وقراءة مريحة عبر استدعاء Google Fonts في الـ head مثل خط 'Cairo' أو 'Tajawal':
-   <link rel="preconnect" href="https://fonts.googleapis.com">
-   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-4. يجب أن يكون الموقع متجاوباً تماماً (Responsive 100%) ومريحاً للعين على الهواتف والشاشات الكبيرة.
-5. النصوص يجب أن تكون باللغة العربية الفصحى الواقعية الراقية المعبرة عن الفكرة تماماً (ممنوع تماماً استخدام نصوص "لوريم إيبسوم" أو نصوص فارغة).
-6. كل الأيقونات يجب أن تكون SVGs مضمنة داخل الكود (Inline SVGs) مثل أيقونات الهاتف والموقع والنجمة والقائمة وعلامة الصح وغيرها، لتعمل فوراً دون انكسار.
-7. ضمن سكريبت JavaScript خفيف وتفاعلي في نهاية الـ body للوظائف التالية:
-   - فتح وإغلاق قائمة الجوال (Mobile Menu Toggle).
-   - التبديل بين التبويبات أو تصنيفات القائمة بسلاسة.
-   - نموذج الحجز أو التواصل مع إظهار نافذة تأكيد أو إشعار Toast جميل عند الإرسال.
-8. اضبط التذييل (Footer) باحترافية مع روابط سريعة وشارة مصغرة وأنيقة في الأسفل:
-   «صُنع بواسطة سَوّيها | المنصة العربية الذكية لإنشاء المواقع».
-9. قم بإرجاع JSON نقي تماماً بدون أي علامات markdown إضافية:
+قواعد صارمة جداً وممنوعات قطعية (Strict Zero-Error & Anti-Slop Rules):
+1. ممنوع منعاً باتاً ظهور أي أكواد برمجية أو وسوم غير معالجة داخل كود الـ HTML للمستخدم:
+   - يمنع قطعاً استخدام: JavaScript code داخل النص، أو \${...} أو template literals، أو {[...].map(...)}، أو كائنات Objects كنص، أو علامات غير منتهية.
+   - يجب أن يكون كل عنصر، منتج، صنف، بطاقة، قسم، سؤال FAQ، وتقييم مكتوباً كـ HTML كامل وصريح وثابت (Static HTML Markup) 100%!
+   - يمنع استخدام alert() أو confirm() أو prompt(). كافة الإشعارات تتم عبر Toast أنيق مدمج في الصفحة.
+2. عدم تكرار القوالب:
+   - يجب أن يتطابق التصميم والهيكل والألوان تماماً مع طبيعة النشاط (${analysis.siteType}).
+   - موقع شركة دواجن وأعلاف يختلف كلياً عن مطعم، ويختلف عن متجر، وعن عيادة، وعن عقارات.
+3. معايير الكود والتقنيات:
+   - أنتج كود HTML5 كامل ونقي يبدأ بـ <!DOCTYPE html> ويحتوي على <html lang="ar" dir="rtl"> و<head> و<body> كاملين.
+   - استخدم مكتبة Tailwind CSS الحديثة:
+     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+   - استخدم خطوط عربية فخمة:
+     <link rel="preconnect" href="https://fonts.googleapis.com">
+     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+     <style>body { font-family: 'Cairo', system-ui, sans-serif; }</style>
+4. الأقسام الإلزامية للموقع المتكامل:
+   - شريط إعلاني علوي (Top Announcement Bar): معلومات ساعات العمل والشحن والتوريد.
+   - ترويسة ثابتة (Sticky Header): شعار العلامة، روابط التنقل، زر سلة الطلب مع عداد إلكتروني، وزر اتصال مباشر.
+   - قسم البطل (Hero Section): عنوان قوي معبر، فقرة تعريفية عميقة، أزرار دعوة للإجراء (CTA)، وإحصائيات وأرقام موثوقة (Stats Counters).
+   - قسم مميزات وقيم فريدة (Why Choose Us): 3 إلى 4 بطاقات بأيقونات معبرة ومحتوى واقعي.
+   - قسم الكتالوج والمنتجات/الخدمات الكامل:
+     * شريط بحث حي وفوري (Live Search Bar).
+     * أزرار تصنيفات وفلاتر تبويبات (Category Filter Tabs).
+     * من 6 إلى 9 بطاقات منتجات/خدمات غنية بصور Unsplash حقيقية، أسعار واقعية (بالدينار العراقي د.ع أو العملة المحلية المناسبة)، مواصفات دقيقة، شارات تميز، وأزرار "أضف للطلب" تفاعلية.
+   - درج سلة الطلب المنزلق (Slide-out Cart Drawer): يفتح عند إضافة منتج أو الضغط على السلة، يعرض الأصناف المحددة، يحسب الإجمالي، ويحتوي على زر تأكيد الطلب.
+   - قسم منظومة الجودة أو مراحل العمل (Process Timeline): 4 خطوات واضحة (مثل: من المزرعة إلى المائدة، أو خطوات تقديم الخدمة).
+   - قسم تقييمات وآراء العملاء (Testimonials): 3 شهادات موثقة مع تقييم 5 نجوم.
+   - قسم الأسئلة الشائعة التفاعلي (FAQ Accordion): 4-5 أسئلة تفتح وتغلق بسلاسة.
+   - قسم التواصل وطلب الجملة والتوريد: نموذج إرسال مع تحقق وإشعار Toast، وأرقام هواتف، ورابط واتساب مباشر.
+   - تذييل كامل (Footer) متعدد الأعمدة مع روابط سريعة وشارة سَوّيها: «صُنع بواسطة سَوّيها | المنصة العربية الذكية لإنشاء المواقع».
+5. كود Vanilla JavaScript تفاعلي كامل ومضبوط في نهاية <body>:
+   - toggleMobileMenu()
+   - filterCategory(cat, btn)
+   - filterSearch(term)
+   - addToCart(title, price, img) / removeFromCart(idx) / updateCartUI() / toggleCart() / confirmCartOrder()
+   - toggleFaq(idx)
+   - handleFormSubmit(e) مع إشعار showToast(msg, type)
+6. قم بإرجاع JSON نقي تماماً بدون أي علامات markdown إضافية:
 {
   "html": "<!DOCTYPE html>...",
   "components": [
-    { "name": "شريط التنقل العلوي", "type": "Header / Navbar", "description": "شعار وروابط رئيسية وزر إجراء وقائمة جوال منسدلة" },
-    { "name": "قسم البطل والترحيب", "type": "Hero Section", "description": "عنوان رئيسي معبر وصورة بارزة وأزرار تفاعلية" },
-    { "name": "قسم المحتوى والقائمة", "type": "Content / Catalog", "description": "بطاقات المنتجات أو الأطباق أو الخدمات مع تصنيفات" },
-    { "name": "قسم المميزات والتفاصيل", "type": "Features", "description": "3 بطاقات تبرز القيمة الفريدة" },
-    { "name": "قسم التواصل والحجز", "type": "Contact / Booking", "description": "نموذج تفاعلي ومعلومات الموقع والاتصال" },
-    { "name": "التذييل", "type": "Footer", "description": "روابط قانونية وسريعة وشارة سَوّيها" }
+    { "name": "شريط الإعلانات والتنقل", "type": "Header & Nav", "description": "شعار وسلة طلب وقائمة متجاوبة" },
+    { "name": "قسم البطل والإحصائيات", "type": "Hero & Stats", "description": "عنوان رئيسي وأرقام اعتماد" },
+    { "name": "كتالوج المنتجات والأسعار", "type": "Interactive Catalog", "description": "فلترة بالتبويبات وبحث حي وبطاقات منتجات" },
+    { "name": "درج سلة الطلبات", "type": "Cart Drawer", "description": "سلة تفاعلية فورية لحساب التكلفة وتأكيد الطلب" },
+    { "name": "معايير الجودة ومراحل العمل", "type": "Process & Quality", "description": "خطوات العمل المعتمدة" },
+    { "name": "آراء العملاء والشهادات", "type": "Testimonials", "description": "تقييمات واقعية وموثقة" },
+    { "name": "الأسئلة الشائعة", "type": "FAQ Accordion", "description": "أكورديون تفاعلي للإجابات" },
+    { "name": "التواصل وطلب التوريد", "type": "Contact & Quote", "description": "نموذج اتصال وواتساب وخريطة" },
+    { "name": "التذييل الشامل", "type": "Footer", "description": "روابط سريعة وشارة منصة سَوّيها" }
   ]
 }`;
 
       const promptDetails = `فكرة الموقع: "${prompt}"
 عنوان الموقع: "${analysis.suggestedTitle || 'موقع سَوّيها'}"
-نوع الموقع: "${analysis.siteType}"
-الجمهور: "${analysis.targetAudience}"
+نوع الموقع الدقيق: "${analysis.siteType}"
+الجمهور المستهدف: "${analysis.targetAudience}"
 الأقسام المطلوبة: ${JSON.stringify(analysis.sections)}
 الميزات المطلوبة: ${JSON.stringify(analysis.features)}
 الأسلوب البصري: ${JSON.stringify(analysis.visualStyle)}
 
-ابنِ الآن الكود الكامل الشامل للموقع بجميع تفاصيله وألوانه وتفاعليته.`;
+ابنِ الآن موقعاً إلكترونياً كاملاً ومبهراً وشاملاً بأعلى معايير الحرفية والبرمجة.`;
 
       const text = await generateContentWithResilience(
         client,
@@ -294,44 +325,43 @@ app.post('/api/ai/generate', async (req, res) => {
           contents: [{ role: 'user', parts: [{ text: promptDetails }] }],
           config: {
             systemInstruction,
-            temperature: typeof aiConfig?.temperature === 'number' ? aiConfig.temperature : 0.5,
+            temperature: typeof aiConfig?.temperature === 'number' ? aiConfig.temperature : 0.4,
             responseMimeType: 'application/json',
           },
         },
-        'AI Website Generation'
+        'AI Website Generation',
+        50000
       );
 
       if (text) {
         try {
           const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-          const parsed = JSON.parse(cleaned);
-          if (parsed && parsed.html) {
-            res.json({
-              success: true,
-              code: {
-                html: parsed.html,
-                pages: analysis.pages || [],
-                components: parsed.components || [],
-                layout: { nav: true, footer: true, dir: 'rtl' },
-                cssFramework: 'tailwind',
-              },
-            });
-            return;
+          let targetHtml = '';
+          let componentsList = [];
+
+          if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+            const parsed = JSON.parse(cleaned);
+            if (parsed && parsed.html) {
+              targetHtml = parsed.html;
+              componentsList = parsed.components || [];
+            }
+          } else if (cleaned.includes('<!DOCTYPE') || cleaned.includes('<html')) {
+            targetHtml = cleaned;
           }
-        } catch (e) {
-          console.warn('JSON parsing error in code generator, will sanitize raw output:', e);
-          // If it returned raw HTML directly
-          if (text.includes('<!DOCTYPE') || text.includes('<html')) {
-            const cleanHtml = text.replace(/```html/gi, '').replace(/```/g, '').trim();
+
+          if (targetHtml) {
+            // Run through the strict sanitizer to guarantee zero broken template literals
+            const finalCleanHtml = sanitizeAndValidateGeneratedHtml(targetHtml, prompt, analysis);
             res.json({
               success: true,
               code: {
-                html: cleanHtml,
+                html: finalCleanHtml,
                 pages: analysis.pages || [],
-                components: [
-                  { name: 'شريط التنقل', type: 'Navbar', description: 'روابط الموقع والقائمة' },
-                  { name: 'الواجهة الرئيسية', type: 'Hero & Content', description: 'المحتوى الرئيسي والعروض' },
-                  { name: 'التواصل والتذييل', type: 'Footer', description: 'نموذج التواصل والبيانات' }
+                components: componentsList.length > 0 ? componentsList : [
+                  { name: 'شريط التنقل وسلة الطلبات', type: 'Header & Cart', description: 'شعار وقائمة وسلة منزلقة' },
+                  { name: 'الواجهة الرئيسية والكتالوج', type: 'Hero & Catalog', description: 'محتوى وبحث وفلاتر تصنيفات' },
+                  { name: 'معايير الجودة والتواصل', type: 'Process & Contact', description: 'أسئلة شائعة ونموذج توريد' },
+                  { name: 'التذييل الشامل', type: 'Footer', description: 'روابط وشارة منصة سَوّيها' }
                 ],
                 layout: { nav: true, footer: true, dir: 'rtl' },
                 cssFramework: 'tailwind',
@@ -339,6 +369,8 @@ app.post('/api/ai/generate', async (req, res) => {
             });
             return;
           }
+        } catch (e) {
+          console.warn('JSON parsing or processing in code generator, running sanitizer fallback:', e);
         }
       }
     }
@@ -346,7 +378,7 @@ app.post('/api/ai/generate', async (req, res) => {
     // High quality standalone generated HTML fallback with full Tailwind and Arabic content
     const siteTitle = analysis.suggestedTitle || 'موقع سَوّيها';
     const siteType = analysis.siteType || 'موقع متكامل';
-    const generatedHtml = buildStandaloneSiteHtml({
+    const generatedHtml = buildComprehensiveSiteHtml({
       title: siteTitle,
       siteType,
       prompt,
@@ -359,12 +391,14 @@ app.post('/api/ai/generate', async (req, res) => {
         html: generatedHtml,
         pages: analysis.pages || [],
         components: [
-          { name: 'شريط التنقل العلوي', type: 'Navbar', description: 'شعار وقائمة تفاعلية وقائمة جوال منسدلة' },
-          { name: 'قسم البطل والترحيب', type: 'Hero Section', description: 'عنوان رئيسي معبر وشارة ونصوص وأزرار إجراء' },
-          { name: 'قسم الخدمات والمنتجات', type: 'Catalog Section', description: 'بطاقات متجاوبة بتصاميم أنيقة وأزرار طلب' },
-          { name: 'قسم المميزات والشهادات', type: 'Features & Trust', description: 'نقاط القوة وتقييمات العملاء الموثقة' },
-          { name: 'قسم الحجز والتواصل السريع', type: 'Booking / Contact', description: 'نموذج تفاعلي متجاوب مع نافذة إشعار فوري' },
-          { name: 'تذييل الصفحة الذكي', type: 'Footer', description: 'روابط تصفح سريعة وشارة منصة سَوّيها' }
+          { name: 'شريط التنقل العلوي وسلة الطلبات', type: 'Navbar & Cart', description: 'شعار وقائمة تفاعلية وقائمة جوال وسلة منزلقة' },
+          { name: 'قسم البطل والإحصائيات', type: 'Hero Section', description: 'عنوان رئيسي معبر وشارة ونصوص وإحصائيات بارزة' },
+          { name: 'كتالوج المنتجات والخدمات التفاعلي', type: 'Catalog Section', description: 'بحث فوري وفلاتر تصنيفات وبطاقات منتجات غنية' },
+          { name: 'منظومة الجودة ومراحل الإنتاج', type: 'Process & Quality', description: 'خطوات العمل ومعايير الاعتماد' },
+          { name: 'آراء العملاء والشهادات الموثقة', type: 'Testimonials', description: 'تجارب العملاء وتقييمات 5 نجوم' },
+          { name: 'الأسئلة الشائعة التفاعلية', type: 'FAQ Accordion', description: 'إجابات فورية بأكورديون تفاعلي' },
+          { name: 'قسم التواصل وطلب الجملة والتوريد', type: 'Booking / Contact', description: 'نموذج تفاعلي وواتساب مباشر وهاتف' },
+          { name: 'تذييل الصفحة الشامل', type: 'Footer', description: 'روابط تصفح سريعة وشارة منصة سَوّيها' }
         ],
         layout: { nav: true, footer: true, dir: 'rtl' },
         cssFramework: 'tailwind',
