@@ -13,9 +13,10 @@ service cloud.firestore {
         request.auth.uid == 'C0Kdkaq8hoMfRwuK6BEY1iLcFjK2' ||
         ('email' in request.auth.token && (
           request.auth.token.email == 'laieth772@gmail.com' ||
-          request.auth.token.email.lower() == 'laieth772@gmail.com'
+          request.auth.token.email.matches('(?i)^laieth772@gmail\\.com$')
         )) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         'role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner')
       );
     }

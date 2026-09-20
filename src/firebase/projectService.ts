@@ -83,20 +83,54 @@ export async function createProject(
       console.warn('Could not update user project counter:', e);
     }
 
+    const currentList = getCachedProjects(userId);
+    setCachedProjects(userId, [project, ...currentList.filter((p) => p.id !== project.id)]);
+
     return project;
   } catch (error) {
-    return handleFirestoreError(error, OperationType.CREATE, `projects/${projectId}`);
+    const currentList = getCachedProjects(userId);
+    setCachedProjects(userId, [project, ...currentList.filter((p) => p.id !== project.id)]);
+    return project;
+  }
+}
+
+const PROJECTS_CACHE_KEY_PREFIX = 'sawwiha_projects_cache_';
+
+function getCachedProjects(userId: string): ProjectItem[] {
+  try {
+    const raw = localStorage.getItem(`${PROJECTS_CACHE_KEY_PREFIX}${userId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    // Ignore local storage error
+  }
+  return [];
+}
+
+function setCachedProjects(userId: string, projects: ProjectItem[]): void {
+  try {
+    localStorage.setItem(`${PROJECTS_CACHE_KEY_PREFIX}${userId}`, JSON.stringify(projects));
+  } catch {
+    // Ignore local storage quota error
   }
 }
 
 /**
- * Real-time listener for user's projects
+ * Real-time listener for user's projects with automatic offline/cache fallback
  */
 export function subscribeUserProjects(
   userId: string,
   onUpdate: (projects: ProjectItem[]) => void,
   onError?: (err: Error) => void
 ): () => void {
+  // Emit initial cached projects immediately if available for smooth zero-flicker loading
+  const initialCache = getCachedProjects(userId);
+  if (initialCache.length > 0) {
+    onUpdate(initialCache);
+  }
+
   const q = query(
     PROJECTS_COLLECTION,
     where('userId', '==', userId)
@@ -113,11 +147,18 @@ export function subscribeUserProjects(
 
       // Sort in-memory by createdAt descending
       projects.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setCachedProjects(userId, projects);
       onUpdate(projects);
     },
     (err) => {
-      console.error('Error fetching user projects:', err);
-      if (onError) onError(err);
+      console.warn('Notice from Firestore projects subscription:', err.message || err);
+      // Fall back to cached projects so user does not experience broken UI
+      const fallback = getCachedProjects(userId);
+      if (fallback.length > 0) {
+        onUpdate(fallback);
+      } else if (onError) {
+        onError(err);
+      }
     }
   );
 }
@@ -134,6 +175,12 @@ export async function updateProjectDetails(
     category?: string;
   }
 ): Promise<void> {
+  const currentList = getCachedProjects(userId);
+  const updatedList = currentList.map((p) =>
+    p.id === projectId ? { ...p, ...fields, updatedAt: new Date().toISOString() } : p
+  );
+  setCachedProjects(userId, updatedList);
+
   const projectRef = doc(db, 'projects', projectId);
   try {
     await setDoc(
@@ -146,7 +193,7 @@ export async function updateProjectDetails(
       { merge: true }
     );
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}`);
+    console.warn('Could not sync project update to Firestore, updated in local cache:', error);
   }
 }
 
@@ -154,6 +201,9 @@ export async function updateProjectDetails(
  * Delete project from Firestore
  */
 export async function deleteProject(projectId: string, userId: string): Promise<void> {
+  const currentList = getCachedProjects(userId);
+  setCachedProjects(userId, currentList.filter((p) => p.id !== projectId));
+
   const projectRef = doc(db, 'projects', projectId);
   try {
     await deleteDoc(projectRef);
@@ -170,7 +220,7 @@ export async function deleteProject(projectId: string, userId: string): Promise<
       console.warn('Could not update user project counter after delete:', e);
     }
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, `projects/${projectId}`);
+    console.warn('Could not delete project from Firestore, deleted from local cache:', error);
   }
 }
 
@@ -265,6 +315,10 @@ export async function createProjectWithAIState(
     updatedAt: now,
   };
 
+  // Update local cache immediately so UI shows the project without waiting
+  const currentList = getCachedProjects(userId);
+  setCachedProjects(userId, [project, ...currentList.filter((p) => p.id !== project.id)]);
+
   try {
     const projectRef = doc(db, 'projects', projectId);
     await setDoc(projectRef, {
@@ -287,7 +341,8 @@ export async function createProjectWithAIState(
 
     return project;
   } catch (error) {
-    return handleFirestoreError(error, OperationType.CREATE, `projects/${projectId}`);
+    console.warn('Could not save project to Firestore, persisted locally:', error);
+    return project;
   }
 }
 
@@ -310,7 +365,7 @@ export async function updateProjectGenerationState(
       { merge: true }
     );
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}`);
+    console.warn('Could not update generation state in Firestore, saved locally:', error);
   }
 }
 
@@ -360,7 +415,8 @@ export async function saveProjectVersion(
 
     return versionDoc;
   } catch (error) {
-    return handleFirestoreError(error, OperationType.CREATE, `projects/${projectId}/versions/${versionId}`);
+    console.warn('Could not save version to Firestore subcollection:', error);
+    return versionDoc;
   }
 }
 

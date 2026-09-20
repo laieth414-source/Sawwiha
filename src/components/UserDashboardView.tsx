@@ -372,17 +372,17 @@ export const UserDashboardView: React.FC<UserDashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Error Message */}
-      {error && (
-        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-2">
+      {/* Error Message if no projects could be loaded */}
+      {error && projects.length === 0 && (
+        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
             <span>{error}</span>
           </div>
           <button
             type="button"
             onClick={() => setRetryTrigger((prev) => prev + 1)}
-            className="text-xs font-bold text-rose-700 hover:text-rose-900 underline cursor-pointer shrink-0"
+            className="text-xs font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer shrink-0"
           >
             إعادة المحاولة
           </button>
