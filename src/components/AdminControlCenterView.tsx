@@ -104,7 +104,7 @@ export const AdminControlCenterView: React.FC = () => {
       setAllProjects(projectsRes);
       setAllPlans(plansRes);
     } catch (err) {
-      console.error('Failed to load admin data:', err);
+      console.warn('Failed to load admin data:', err);
     } finally {
       setLoadingData(false);
     }

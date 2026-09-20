@@ -55,7 +55,7 @@ export const AdminUserSubscriptions: React.FC = () => {
       const list = await adminGetAllUsers();
       setUsersList(list);
     } catch (e) {
-      console.error('Failed to load users for admin:', e);
+      console.warn('Notice loading users for admin:', e);
     } finally {
       setLoading(false);
     }

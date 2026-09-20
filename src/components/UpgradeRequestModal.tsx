@@ -92,7 +92,7 @@ export const UpgradeRequestModal: React.FC<UpgradeRequestModalProps> = ({
         onClose();
       }, 2000);
     } catch (e) {
-      console.error('Owner activation error:', e);
+      console.warn('Owner activation notice:', e);
     } finally {
       setOwnerActivating(false);
     }

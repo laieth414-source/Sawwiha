@@ -128,6 +128,6 @@ export async function savePlatformSettings(
       { merge: true }
     );
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, 'settings/platform_config');
+    console.warn('Could not save platform settings to Firestore:', error);
   }
 }

@@ -115,7 +115,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       );
       setTimeout(() => setSuccessNotice(null), 4500);
     } catch (err: unknown) {
-      console.error('Publish failed:', err);
+      console.warn('Publish warning:', err);
       setError(err instanceof Error ? err.message : 'فشلت عملية النشر، يرجى المحاولة مرة أخرى.');
     } finally {
       setIsPublishing(false);
@@ -154,7 +154,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       setSuccessNotice('تم إلغاء نشر الموقع بنجاح وأصبح في وضع المسودة.');
       setTimeout(() => setSuccessNotice(null), 3500);
     } catch (err: unknown) {
-      console.error('Unpublish failed:', err);
+      console.warn('Unpublish warning:', err);
       setError(err instanceof Error ? err.message : 'فشلت عملية إلغاء النشر.');
     } finally {
       setIsUnpublishing(false);

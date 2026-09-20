@@ -98,7 +98,7 @@ export const GitHubExportModal: React.FC<GitHubExportModalProps> = ({
       setSuccessInfo(repoInfo);
       setCurrentStep('تم اكتمال التصدير بنجاح!');
     } catch (err: unknown) {
-      console.error('GitHub export error:', err);
+      console.warn('GitHub export notice:', err);
       setError(
         err instanceof Error
           ? err.message

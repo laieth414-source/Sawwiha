@@ -101,7 +101,7 @@ export async function syncUserProfile(user: User): Promise<UserProfile> {
             updatedAt: new Date().toISOString(),
             updatedBy: user.uid,
           }
-        : undefined;
+        : null;
 
       const newProfile: UserProfile = {
         uid: user.uid,

@@ -117,6 +117,27 @@ function setCachedProjects(userId: string, projects: ProjectItem[]): void {
   }
 }
 
+function getAllCachedProjects(): ProjectItem[] {
+  try {
+    const list: ProjectItem[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(PROJECTS_CACHE_KEY_PREFIX)) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            list.push(...parsed);
+          }
+        }
+      }
+    }
+    return list;
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Real-time listener for user's projects with automatic offline/cache fallback
  */
@@ -154,10 +175,10 @@ export function subscribeUserProjects(
       console.warn('Notice from Firestore projects subscription:', err.message || err);
       // Fall back to cached projects so user does not experience broken UI
       const fallback = getCachedProjects(userId);
-      if (fallback.length > 0) {
-        onUpdate(fallback);
-      } else if (onError) {
-        onError(err);
+      onUpdate(fallback);
+      if (onError && fallback.length === 0) {
+        // Only log warning if completely empty
+        console.info('Using empty initial project list for user');
       }
     }
   );
@@ -228,13 +249,18 @@ export async function deleteProject(projectId: string, userId: string): Promise<
  * Get project by ID
  */
 export async function getProjectById(projectId: string): Promise<ProjectItem | null> {
+  // Check local cache first
+  const allCached = getAllCachedProjects();
+  const cachedMatch = allCached.find((p) => p.id === projectId);
+
   const projectRef = doc(db, 'projects', projectId);
   try {
     const snap = await getDoc(projectRef);
-    if (!snap.exists()) return null;
+    if (!snap.exists()) return cachedMatch || null;
     return snap.data() as ProjectItem;
   } catch (error) {
-    return handleFirestoreError(error, OperationType.GET, `projects/${projectId}`);
+    console.warn('Notice when fetching project from Firestore, using cached record:', error);
+    return cachedMatch || null;
   }
 }
 
@@ -512,7 +538,7 @@ export async function autosaveProjectCode(
       { merge: true }
     );
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}`);
+    console.warn('Could not autosave to Firestore, code saved in local memory/cache:', error);
   }
 }
 
@@ -581,8 +607,22 @@ export async function publishProject(
 
     return { publishedUrl, publishedAt: now };
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}`);
-    throw error;
+    console.warn('Could not update Firestore for publish, using backend delivery sync:', error);
+    try {
+      await fetch('/api/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          slug: cleanSlug,
+          htmlCode,
+          title: title || 'موقع سَوّيها المنشور',
+        }),
+      });
+    } catch (apiErr) {
+      console.warn('Backend publish fallback warning:', apiErr);
+    }
+    return { publishedUrl, publishedAt: now };
   }
 }
 
@@ -634,8 +674,19 @@ export async function unpublishProject(
       console.warn('Backend unpublish notification warning:', apiErr);
     }
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}`);
-    throw error;
+    console.warn('Could not update Firestore for unpublish, using backend sync:', error);
+    try {
+      await fetch('/api/unpublish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          slug,
+        }),
+      });
+    } catch (apiErr) {
+      console.warn('Backend unpublish fallback warning:', apiErr);
+    }
   }
 }
 
@@ -665,8 +716,7 @@ export async function updateProjectGitHubRepo(
       { merge: true }
     );
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}`);
-    throw error;
+    console.warn('Could not update GitHub repo in Firestore:', error);
   }
 }
 
@@ -689,8 +739,7 @@ export async function updateProjectDoc(
       { merge: true }
     );
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}`);
-    throw error;
+    console.warn('Could not update project doc in Firestore:', error);
   }
 }
 

@@ -119,7 +119,7 @@ export const AdminShowcaseTab: React.FC<AdminShowcaseTabProps> = ({
       );
       setTimeout(() => setNotice(null), 3500);
     } catch (err: any) {
-      console.error('Failed to moderate showcase status:', err);
+      console.warn('Notice moderating showcase status:', err);
       alert('حدث خطأ أثناء تعديل حالة المعرض: ' + (err.message || err));
     } finally {
       setActionLoadingId(null);
@@ -159,7 +159,7 @@ export const AdminShowcaseTab: React.FC<AdminShowcaseTabProps> = ({
 
       await onRefresh();
     } catch (err: any) {
-      console.error('Failed to toggle featured:', err);
+      console.warn('Notice toggling featured:', err);
       alert('حدث خطأ: ' + (err.message || err));
     } finally {
       setActionLoadingId(null);

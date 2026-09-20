@@ -156,7 +156,7 @@ export const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
       setSaveNotice('تم حفظ وتحديث إعدادات المشروع بنجاح! ✨');
       setTimeout(() => setSaveNotice(null), 3500);
     } catch (err: any) {
-      console.error('Failed to save project settings:', err);
+      console.warn('Notice saving project settings:', err);
       alert('حدث خطأ أثناء حفظ الإعدادات: ' + (err.message || err));
     } finally {
       setIsSaving(false);

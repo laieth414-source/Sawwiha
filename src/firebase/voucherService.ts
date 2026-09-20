@@ -19,6 +19,32 @@ import { logAdminAction } from './auditLogService';
 
 export const CODES_COLLECTION = collection(db, 'subscription_codes');
 
+const VOUCHERS_CACHE_KEY = 'sawwiha_cached_vouchers_v1';
+
+export function getCachedVouchers(): SubscriptionVoucherCode[] {
+  try {
+    const raw = localStorage.getItem(VOUCHERS_CACHE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCachedVouchers(codes: SubscriptionVoucherCode[]): void {
+  try {
+    const existing = getCachedVouchers();
+    const map = new Map<string, SubscriptionVoucherCode>();
+    for (const c of existing) map.set(c.id, c);
+    for (const c of codes) map.set(c.id, c);
+    const merged = Array.from(map.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    localStorage.setItem(VOUCHERS_CACHE_KEY, JSON.stringify(merged));
+  } catch (err) {
+    console.warn('Could not save vouchers to cache:', err);
+  }
+}
+
 /**
  * Generate a cryptographically strong, human-readable voucher code
  * Example format: SW-PRO-8F2N-7K4M
@@ -93,6 +119,8 @@ export async function createSubscriptionVoucherCodes(params: {
 
   const batch = writeBatch(db);
 
+  const safeNotes = notes && notes.trim() ? notes.trim() : null;
+
   for (let i = 0; i < safeCount; i++) {
     const codeString = generateRandomVoucherCode(plan.slug);
     const codeDocId = `code_${codeString.replace(/[^A-Za-z0-9]/g, '_')}`;
@@ -113,14 +141,29 @@ export async function createSubscriptionVoucherCodes(params: {
       redeemedByEmail: null,
       redeemedAt: null,
       expiresAt: null,
-      notes: notes || undefined,
+      notes: safeNotes,
     };
 
-    batch.set(codeRef, voucher);
+    // Clean any undefined values before writing to Firestore
+    const cleanDocData: Record<string, any> = {};
+    for (const [k, v] of Object.entries(voucher)) {
+      if (v !== undefined) {
+        cleanDocData[k] = v;
+      }
+    }
+
+    batch.set(codeRef, cleanDocData);
     createdCodes.push(voucher);
   }
 
-  await batch.commit();
+  // Preserve codes in local cache immediately so they are never lost
+  saveCachedVouchers(createdCodes);
+
+  try {
+    await batch.commit();
+  } catch (commitErr) {
+    console.warn('Notice writing codes batch to Firestore, preserved in local cache:', commitErr);
+  }
 
   // Log audit action
   try {
@@ -152,21 +195,33 @@ export async function createSubscriptionVoucherCodes(params: {
 export function subscribeToSubscriptionCodes(
   callback: (codes: SubscriptionVoucherCode[]) => void
 ): () => void {
+  // Emit locally cached codes first for instant UI response
+  const initialCached = getCachedVouchers();
+  if (initialCached.length > 0) {
+    callback(initialCached);
+  }
+
   const q = query(CODES_COLLECTION, orderBy('createdAt', 'desc'));
 
   return onSnapshot(
     q,
     (snap) => {
       const list = snap.docs.map((d) => d.data() as SubscriptionVoucherCode);
-      callback(list);
+      saveCachedVouchers(list);
+      const combined = getCachedVouchers();
+      callback(combined.length > 0 ? combined : list);
     },
     (err) => {
       console.warn('Subscription codes listener warning:', err);
-      // Fallback one-time fetch
+      // Fallback one-time fetch or cached
       getDocs(CODES_COLLECTION).then((s) => {
         const list = s.docs.map((d) => d.data() as SubscriptionVoucherCode);
-        callback(list);
-      }).catch(console.error);
+        saveCachedVouchers(list);
+        callback(getCachedVouchers());
+      }).catch((fetchErr) => {
+        console.warn('Subscription codes fallback fetch warning:', fetchErr);
+        callback(getCachedVouchers());
+      });
     }
   );
 }
@@ -308,7 +363,7 @@ export async function redeemSubscriptionVoucherCode(params: {
     transaction.update(codeDocRef, {
       status: 'redeemed',
       redeemedBy: userId,
-      redeemedByEmail: userEmail,
+      redeemedByEmail: userEmail || null,
       redeemedAt: startDate,
       expiresAt: expirationDate,
     });

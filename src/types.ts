@@ -441,7 +441,7 @@ export interface UserProfile {
   status: 'active' | 'suspended';
   planId?: string;
   planSlug?: string;
-  subscription?: UserSubscription;
+  subscription?: UserSubscription | null;
   customLimits?: UserCustomLimitsOverride;
   createdAt?: unknown;
   lastLoginAt?: unknown;
@@ -468,7 +468,7 @@ export interface SubscriptionVoucherCode {
   redeemedByEmail?: string | null; // User Email who redeemed the code
   redeemedAt?: string | null;      // ISO date of redemption
   expiresAt?: string | null;       // ISO date of expiration after redemption
-  notes?: string;                  // Optional administrative note
+  notes?: string | null;           // Optional administrative note
 }
 
 

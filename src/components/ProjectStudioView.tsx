@@ -140,7 +140,7 @@ export const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({
       setFeedbackNotice({ type: 'success', text: 'تم تنزيل حزمة المشروع (ZIP) بنجاح! 📦' });
       setTimeout(() => setFeedbackNotice(null), 3500);
     } catch (err: unknown) {
-      console.error('ZIP download error:', err);
+      console.warn('ZIP download notice:', err);
       setFeedbackNotice({ type: 'error', text: 'فشل تنزيل ملف ZIP، يرجى المحاولة مرة أخرى.' });
       setTimeout(() => setFeedbackNotice(null), 3500);
     } finally {
@@ -215,7 +215,7 @@ export const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({
             });
           }
         } catch (err) {
-          console.error('Autosave error:', err);
+          console.warn('Autosave warning:', err);
           setAutosaveStatus('error');
         }
       }, 1500);
@@ -372,7 +372,7 @@ export const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({
       setFeedbackNotice({ type: 'success', text: 'تم تطبيق تعديل الذكاء الاصطناعي بنجاح!' });
       setTimeout(() => setFeedbackNotice(null), 3500);
     } catch (err: any) {
-      console.error('AI Edit Error:', err);
+      console.warn('AI Edit Notice:', err);
       const errorMsg: AIChatMessage = {
         id: `error_${Date.now()}`,
         sender: 'assistant',
@@ -432,7 +432,7 @@ export const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({
       };
       setMessages((prev) => [...prev, repairMsg]);
     } catch (err: any) {
-      console.error('Repair Error:', err);
+      console.warn('Repair Notice:', err);
       setFeedbackNotice({ type: 'error', text: `فشل الفحص والإصلاح: ${err.message}` });
       setTimeout(() => setFeedbackNotice(null), 4000);
     } finally {
@@ -472,7 +472,7 @@ export const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({
       setFeedbackNotice({ type: 'success', text: 'تمت استعادة النسخة بنجاح!' });
       setTimeout(() => setFeedbackNotice(null), 3500);
     } catch (err: any) {
-      console.error('Restore Error:', err);
+      console.warn('Restore Notice:', err);
       setFeedbackNotice({ type: 'error', text: 'فشلت استعادة النسخة.' });
     } finally {
       setIsRestoring(false);
@@ -503,7 +503,7 @@ export const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({
       setFeedbackNotice({ type: 'success', text: 'تم حفظ المشروع وسجل النسخة في السحابة بنجاح.' });
       setTimeout(() => setFeedbackNotice(null), 3000);
     } catch (err) {
-      console.error('Manual save failed:', err);
+      console.warn('Manual save warning:', err);
       setAutosaveStatus('error');
     }
   };

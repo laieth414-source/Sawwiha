@@ -298,7 +298,7 @@ export const AIWebsiteBuilderView: React.FC<AIWebsiteBuilderViewProps> = ({
       setStage('completed');
       setShowEditDrawer(false);
     } catch (err: unknown) {
-      console.error('Build failed:', err);
+      console.warn('Build attempt error:', err);
       let errText = 'حدث خطأ أثناء بناء الموقع. يرجى المحاولة مرة أخرى.';
       if (err instanceof Error) {
         try {
@@ -643,12 +643,15 @@ export const AIWebsiteBuilderView: React.FC<AIWebsiteBuilderViewProps> = ({
               {/* Action Buttons */}
               <button
                 type="button"
-                onClick={handleCopyHtml}
-                className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer"
-                title="نسخ كود الموقع"
+                onClick={() => {
+                  if (viewTab !== 'code') setViewTab('code');
+                  handleCopyHtml();
+                }}
+                className="p-2 px-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                title="عرض ونسخ الكود"
               >
                 {copiedCode ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                <span className="hidden sm:inline">{copiedCode ? 'تم النسخ' : 'نسخ'}</span>
+                <span className="hidden sm:inline">{copiedCode ? 'تم النسخ!' : 'عرض ونسخ الكود'}</span>
               </button>
 
               <button
