@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { auth, FIREBASE_CONFIG } from '../firebase/config';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { auth, db, FIREBASE_CONFIG } from '../firebase/config';
 import {
   loginWithGoogle as apiLoginWithGoogle,
   loginWithEmail as apiLoginWithEmail,
@@ -236,8 +237,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserUsage(usage);
     });
 
+    // Real-time listener on user's Firestore document for instant plan & subscription updates
+    const userDocRef = doc(db, 'users', user.uid);
+    const unsubscribeProfile = onSnapshot(
+      userDocRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const remoteData = docSnap.data() as UserProfile;
+          setUserProfile((prev) => {
+            if (!prev) return remoteData;
+            return {
+              ...prev,
+              ...remoteData,
+              planId: remoteData.planId || prev.planId,
+              planSlug: remoteData.planSlug || prev.planSlug,
+              subscription: remoteData.subscription || prev.subscription,
+            };
+          });
+        }
+      },
+      (err) => {
+        console.warn('Real-time profile listener notice:', err);
+      }
+    );
+
     return () => {
       unsubscribeUsage();
+      unsubscribeProfile();
     };
   }, [user?.uid]);
 

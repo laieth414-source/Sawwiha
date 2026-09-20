@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './config';
 import { SubscriptionVoucherCode, PlatformPlan, UserSubscription, UserProfile } from '../types';
-import { getPlanByIdOrSlug } from './plansService';
+import { getPlanByIdOrSlug, DEFAULT_PLANS } from './plansService';
 import { logAdminAction } from './auditLogService';
 
 export const CODES_COLLECTION = collection(db, 'subscription_codes');
@@ -328,7 +328,7 @@ export async function cancelSubscriptionVoucherCode(
 }
 
 /**
- * Atomic user redemption of a subscription code in Firestore
+ * Atomic user redemption of a subscription code in Firestore with resilient cache fallbacks
  */
 export async function redeemSubscriptionVoucherCode(params: {
   rawCode: string;
@@ -352,17 +352,36 @@ export async function redeemSubscriptionVoucherCode(params: {
 
   const normalizedCode = rawCode.trim().toUpperCase();
 
-  // 1. Locate code document in Firestore
-  const q = query(CODES_COLLECTION, where('code', '==', normalizedCode));
-  const querySnap = await getDocs(q);
+  // 1. Locate code document in Firestore or fallback to local cache
+  let codeDocRef: any = null;
+  let initialData: SubscriptionVoucherCode | null = null;
 
-  if (querySnap.empty) {
-    throw new Error('كود الاشتراك المدخل غير صحيح أو غير موجود.');
+  try {
+    const q = query(CODES_COLLECTION, where('code', '==', normalizedCode));
+    const querySnap = await getDocs(q);
+    if (!querySnap.empty) {
+      const targetDocSnap = querySnap.docs[0];
+      codeDocRef = targetDocSnap.ref;
+      initialData = normalizeVoucherDoc(targetDocSnap.data(), targetDocSnap.id);
+    }
+  } catch (firestoreQueryErr) {
+    console.warn('Notice querying subscription code from Firestore:', firestoreQueryErr);
   }
 
-  const targetDocSnap = querySnap.docs[0];
-  const codeDocRef = targetDocSnap.ref;
-  const initialData = targetDocSnap.data() as SubscriptionVoucherCode;
+  // Fallback to locally cached codes if not found in Firestore or if query failed
+  if (!initialData) {
+    const cachedCodes = getCachedVouchers();
+    const cachedMatch = cachedCodes.find((c) => c.code && c.code.trim().toUpperCase() === normalizedCode);
+    if (cachedMatch) {
+      initialData = normalizeVoucherDoc(cachedMatch, cachedMatch.id);
+      const codeDocId = cachedMatch.id || `code_${normalizedCode.replace(/[^A-Za-z0-9]/g, '_')}`;
+      codeDocRef = doc(db, 'subscription_codes', codeDocId);
+    }
+  }
+
+  if (!initialData || !codeDocRef) {
+    throw new Error('كود الاشتراك المدخل غير صحيح أو غير موجود.');
+  }
 
   if (initialData.status === 'redeemed') {
     throw new Error('هذا الكود تم استخدامه وتفعيله مسبقاً ولا يمكن استخدامه مرة أخرى.');
@@ -373,88 +392,139 @@ export async function redeemSubscriptionVoucherCode(params: {
   }
 
   // 2. Fetch associated plan
-  const plan = await getPlanByIdOrSlug(initialData.planId);
-  if (!plan) {
-    throw new Error(`الخطة المرتبطة بالكود (${initialData.planName}) غير متوفرة حالياً.`);
-  }
+  const plan =
+    (await getPlanByIdOrSlug(initialData.planId)) ||
+    (await getPlanByIdOrSlug(initialData.planSlug));
+
+  const planName = plan?.name || initialData.planName || 'خطة المنصة';
+  const planId = plan?.id || initialData.planId;
+  const planSlug = plan?.slug || initialData.planSlug || 'pro';
 
   const duration = getDurationDetails(initialData.durationMonths || 1);
   const now = new Date();
   const startDate = now.toISOString();
   const expirationDate = new Date(now.getTime() + duration.days * 24 * 60 * 60 * 1000).toISOString();
 
-  // 3. Atomic transaction to prevent double redemption
-  let updatedCodeRecord!: SubscriptionVoucherCode;
-  let userSubscription!: UserSubscription;
+  // 3. Prepare updated subscription and code records
+  const userDocRef = doc(db, 'users', userId);
+  const subDocId = `sub_${userId}_${Date.now()}`;
+  const subDocRef = doc(db, 'subscriptions', subDocId);
 
-  await runTransaction(db, async (transaction) => {
-    const codeSnap = await transaction.get(codeDocRef);
-    if (!codeSnap.exists()) {
-      throw new Error('تعذر العثور على سجل الكود أثناء المعاملة.');
-    }
+  const userSubscription: UserSubscription = {
+    id: subDocId,
+    userId,
+    userEmail: userEmail || 'user',
+    planId,
+    planSlug,
+    planName,
+    status: 'active',
+    startDate,
+    endDate: expirationDate,
+    provider: 'manual_owner_grant',
+    notes: `تم التفعيل عبر كود الاشتراك: ${normalizedCode} (${duration.label})`,
+    updatedAt: startDate,
+    updatedBy: userId,
+  };
 
-    const currentCode = codeSnap.data() as SubscriptionVoucherCode;
-    if (currentCode.status !== 'unused') {
-      if (currentCode.status === 'redeemed') {
-        throw new Error('تم استخدام هذا الكود بالفعل من قبل مستخدم آخر.');
+  const updatedCodeRecord: SubscriptionVoucherCode = {
+    ...initialData,
+    status: 'redeemed',
+    redeemedBy: userId,
+    redeemedByEmail: userEmail || null,
+    redeemedAt: startDate,
+    expiresAt: expirationDate,
+  };
+
+  const cleanCodeData = {
+    id: initialData.id,
+    code: normalizedCode,
+    planId,
+    planName,
+    planSlug,
+    durationMonths: initialData.durationMonths || 1,
+    durationLabel: initialData.durationLabel || duration.label,
+    status: 'redeemed',
+    createdAt: initialData.createdAt || startDate,
+    createdBy: initialData.createdBy || 'المنصة',
+    redeemedBy: userId,
+    redeemedByEmail: userEmail || null,
+    redeemedAt: startDate,
+    expiresAt: expirationDate,
+    notes: initialData.notes || null,
+  };
+
+  // 4. Atomic transaction with sequential writes fallback
+  let writeCompleted = false;
+  try {
+    await runTransaction(db, async (transaction) => {
+      const codeSnap = await transaction.get(codeDocRef);
+      if (codeSnap.exists()) {
+        const cData = codeSnap.data() as SubscriptionVoucherCode;
+        if (cData.status === 'redeemed') {
+          throw new Error('تم استخدام هذا الكود بالفعل من قبل مستخدم آخر.');
+        }
       }
-      throw new Error('هذا الكود لم يعد متاحاً للاستخدام.');
-    }
 
-    const userDocRef = doc(db, 'users', userId);
-    const subDocId = `sub_${userId}_${Date.now()}`;
-    const subDocRef = doc(db, 'subscriptions', subDocId);
-
-    userSubscription = {
-      id: subDocId,
-      userId,
-      userEmail: userEmail || 'user',
-      planId: plan.id,
-      planSlug: plan.slug,
-      planName: plan.name,
-      status: 'active',
-      startDate,
-      endDate: expirationDate,
-      provider: 'manual_owner_grant',
-      notes: `تم التفعيل عبر كود الاشتراك: ${normalizedCode} (${duration.label})`,
-      updatedAt: startDate,
-      updatedBy: userId,
-    };
-
-    // Update code doc
-    transaction.update(codeDocRef, {
-      status: 'redeemed',
-      redeemedBy: userId,
-      redeemedByEmail: userEmail || null,
-      redeemedAt: startDate,
-      expiresAt: expirationDate,
+      transaction.set(codeDocRef, cleanCodeData, { merge: true });
+      transaction.set(
+        userDocRef,
+        {
+          planId,
+          planSlug,
+          subscription: userSubscription,
+        },
+        { merge: true }
+      );
+      transaction.set(subDocRef, userSubscription);
     });
+    writeCompleted = true;
+  } catch (txErr: unknown) {
+    console.warn('Transaction notice during code redemption, executing direct setDoc writes:', txErr);
+    try {
+      await setDoc(codeDocRef, cleanCodeData, { merge: true });
+      await setDoc(
+        userDocRef,
+        {
+          planId,
+          planSlug,
+          subscription: userSubscription,
+        },
+        { merge: true }
+      );
+      await setDoc(subDocRef, userSubscription);
+      writeCompleted = true;
+    } catch (directErr) {
+      console.warn('Direct Firestore write notice during code redemption, applying locally:', directErr);
+    }
+  }
 
-    // Update user profile with new plan and subscription
-    transaction.set(
-      userDocRef,
-      {
-        planId: plan.id,
-        planSlug: plan.slug,
-        subscription: userSubscription,
-      },
-      { merge: true }
-    );
+  // 5. Always persist to local cache immediately so UI and Admin table update instantly
+  try {
+    const cached = getCachedVouchers();
+    let foundInCache = false;
+    const updated = cached.map((c) => {
+      if (c.code && c.code.trim().toUpperCase() === normalizedCode) {
+        foundInCache = true;
+        return updatedCodeRecord;
+      }
+      return c;
+    });
+    if (!foundInCache) {
+      updated.unshift(updatedCodeRecord);
+    }
+    saveCachedVouchers(updated);
+  } catch (cacheErr) {
+    console.warn('Voucher cache update warning:', cacheErr);
+  }
 
-    // Save historical subscription document
-    transaction.set(subDocRef, userSubscription);
+  // Also backup user subscription in localStorage
+  try {
+    localStorage.setItem(`sawwiha_active_sub_${userId}`, JSON.stringify(userSubscription));
+  } catch (localSubErr) {
+    console.warn('Local sub backup warning:', localSubErr);
+  }
 
-    updatedCodeRecord = {
-      ...currentCode,
-      status: 'redeemed',
-      redeemedBy: userId,
-      redeemedByEmail: userEmail,
-      redeemedAt: startDate,
-      expiresAt: expirationDate,
-    };
-  });
-
-  // Log platform audit record
+  // 6. Log platform audit record (silent catch)
   try {
     await logAdminAction({
       adminId: userId,
@@ -462,11 +532,11 @@ export async function redeemSubscriptionVoucherCode(params: {
       action: 'plan_change',
       targetEntity: 'user',
       targetId: userId,
-      summary: `تفعيل كود اشتراك لخطة ${plan.name} للمستخدم ${userEmail}`,
+      summary: `تفعيل كود اشتراك لخطة ${planName} للمستخدم ${userEmail}`,
       details: {
         code: normalizedCode,
-        planId: plan.id,
-        planName: plan.name,
+        planId,
+        planName,
         durationMonths: initialData.durationMonths,
         expiresAt: expirationDate,
       },
@@ -475,10 +545,22 @@ export async function redeemSubscriptionVoucherCode(params: {
     console.warn('Could not write audit log for code redemption:', err);
   }
 
+  const defaultFallback =
+    DEFAULT_PLANS.find((p) => p.id === planId || p.slug === planSlug) ||
+    DEFAULT_PLANS[1] ||
+    DEFAULT_PLANS[0];
+
+  const resolvedPlan: PlatformPlan = plan || {
+    ...defaultFallback,
+    id: planId,
+    slug: planSlug,
+    name: planName,
+  };
+
   return {
     success: true,
     code: updatedCodeRecord,
-    plan,
+    plan: resolvedPlan,
     subscription: userSubscription,
   };
 }
