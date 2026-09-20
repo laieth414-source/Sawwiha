@@ -1,0 +1,33 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Proxy /api/* to the serverless Netlify function
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/api/:splat"
+  status = 200
+  force = true
+
+# Proxy public site routes (/s/:slug, /sites/:slug) to the serverless function
+[[redirects]]
+  from = "/s/*"
+  to = "/.netlify/functions/api/s/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/sites/*"
+  to = "/.netlify/functions/api/sites/:splat"
+  status = 200
+  force = true
+
+# SPA client-side fallback for all frontend routes
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

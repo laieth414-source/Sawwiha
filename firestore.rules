@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: checks if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper: checks if user is platform owner
+    function isOwner() {
+      return isAuthenticated() && (
+        request.auth.uid == 'C0Kdkaq8hoMfRwuK6BEY1iLcFjK2' ||
+        ('email' in request.auth.token && (
+          request.auth.token.email == 'laieth772@gmail.com' ||
+          request.auth.token.email.lower() == 'laieth772@gmail.com'
+        )) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner')
+      );
+    }
+
+    // Connectivity probe collection
+    match /_connection_test/{testId} {
+      allow read, write: if true;
+    }
+
+    // Projects: Authenticated users can create, creators and owner can update/delete, public can read
+    match /projects/{projectId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (
+        !('userId' in resource.data) ||
+        resource.data.userId == request.auth.uid ||
+        isOwner()
+      );
+
+      // Subcollections: versions, snapshots, feedback, logs
+      match /{allChildren=**} {
+        allow read: if true;
+        allow write: if isAuthenticated();
+      }
+    }
+
+    // Users: Users can read and update their own profile, owner can manage all
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isOwner()
+      );
+      allow delete: if isOwner();
+    }
+
+    // Plans: Public read for pricing, write for owner
+    match /plans/{planId} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+
+    // Subscriptions: Public read for subscription state, authenticated write
+    match /subscriptions/{subscriptionId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Subscription Codes: Public read, Owner can create/manage/cancel, Users can redeem unused code
+    match /subscription_codes/{codeId} {
+      allow read: if true;
+      allow create, delete: if isOwner();
+      allow update: if isAuthenticated() && (
+        isOwner() ||
+        (
+          resource.data.status == 'unused' &&
+          request.resource.data.status == 'redeemed' &&
+          request.resource.data.redeemedBy == request.auth.uid
+        )
+      );
+    }
+
+    // User usage tracking: Public read for limits check, authenticated write
+    match /user_usage/{userId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Dynamic Platform Settings: Public read, owner update
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+
+    // Audit logs: Public read for system health/logs, authenticated write
+    match /audit_logs/{logId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+  }
+}
+
+

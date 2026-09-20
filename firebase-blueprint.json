@@ -1,0 +1,230 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile document in Sawwiha platform",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Authentication User ID"
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User full name or display name"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Avatar photo URL"
+        },
+        "role": {
+          "type": "string",
+          "description": "User role (owner, user)"
+        },
+        "status": {
+          "type": "string",
+          "description": "Account status (active, suspended)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Account registration timestamp"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "description": "Last login timestamp"
+        }
+      },
+      "required": ["uid", "email"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "User website project document in Sawwiha platform",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique project identifier"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Authentication UID"
+        },
+        "ownerEmail": {
+          "type": "string",
+          "description": "Owner email address"
+        },
+        "ownerName": {
+          "type": "string",
+          "description": "Owner display name"
+        },
+        "title": {
+          "type": "string",
+          "description": "Project title"
+        },
+        "description": {
+          "type": "string",
+          "description": "Project description or initial prompt"
+        },
+        "slug": {
+          "type": "string",
+          "description": "URL slug for the project"
+        },
+        "category": {
+          "type": "string",
+          "description": "Project category"
+        },
+        "status": {
+          "type": "string",
+          "description": "Project status (draft, active)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["id", "userId", "title"]
+    },
+    "PlatformSettings": {
+      "title": "PlatformSettings",
+      "description": "Dynamic platform configuration managed by Owner",
+      "type": "object",
+      "properties": {
+        "platformName": {
+          "type": "string",
+          "description": "Public name of the platform"
+        },
+        "platformTagline": {
+          "type": "string",
+          "description": "Platform main marketing tagline"
+        },
+        "platformDescription": {
+          "type": "string",
+          "description": "Detailed platform description"
+        },
+        "logoText": {
+          "type": "string",
+          "description": "Short logo badge text"
+        },
+        "logoColor": {
+          "type": "string",
+          "description": "Brand theme color"
+        },
+        "announcement": {
+          "type": "object",
+          "description": "Global announcement banner config"
+        },
+        "alert": {
+          "type": "object",
+          "description": "Global alert banner config"
+        },
+        "features": {
+          "type": "object",
+          "description": "Feature switches for Phase 1"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp"
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "Admin UID who updated the settings"
+        }
+      },
+      "required": ["platformName"]
+    },
+    "ConnectionTest": {
+      "title": "ConnectionTest",
+      "description": "Diagnostics and connectivity test document",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Connection status indication"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Target project identifier"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Probe timestamp"
+        }
+      },
+      "required": ["status"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable administrative audit log entry",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique audit log identifier"
+        },
+        "action": {
+          "type": "string",
+          "description": "Administrative action category"
+        },
+        "adminId": {
+          "type": "string",
+          "description": "UID of the owner performing the action"
+        },
+        "adminEmail": {
+          "type": "string",
+          "description": "Email of the owner performing the action"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO timestamp of the event"
+        },
+        "targetEntity": {
+          "type": "string",
+          "description": "Entity category (user, project, plan, settings, ai, feature_flag)"
+        },
+        "targetId": {
+          "type": "string",
+          "description": "Target entity identifier"
+        },
+        "summary": {
+          "type": "string",
+          "description": "Human-readable summary of the action"
+        },
+        "details": {
+          "type": "object",
+          "description": "Additional non-sensitive operation context"
+        }
+      },
+      "required": ["id", "action", "adminEmail", "timestamp", "summary"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of platform user profiles"
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Collection of user website projects"
+    },
+    "/settings/{settingId}": {
+      "schema": "PlatformSettings",
+      "description": "Platform global dynamic settings"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Administrative audit trail collection"
+    },
+    "/_connection_test/{testId}": {
+      "schema": "ConnectionTest",
+      "description": "Diagnostics and connection probe collection"
+    }
+  }
+}
