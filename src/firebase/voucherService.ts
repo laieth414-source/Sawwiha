@@ -159,10 +159,21 @@ export async function createSubscriptionVoucherCodes(params: {
   // Preserve codes in local cache immediately so they are never lost
   saveCachedVouchers(createdCodes);
 
+  // Sync to server-side persistence API
+  try {
+    await fetch('/api/vouchers/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vouchers: createdCodes }),
+    });
+  } catch (apiErr) {
+    console.warn('Notice saving vouchers to server API:', apiErr);
+  }
+
   try {
     await batch.commit();
   } catch (commitErr) {
-    console.warn('Notice writing codes batch to Firestore, preserved in local cache:', commitErr);
+    console.warn('Notice writing codes batch to Firestore, preserved in local and server cache:', commitErr);
   }
 
   // Log audit action
@@ -257,11 +268,22 @@ export function normalizeVoucherDoc(data: Record<string, any>, fallbackId = ''):
 export function subscribeToSubscriptionCodes(
   callback: (codes: SubscriptionVoucherCode[]) => void
 ): () => void {
-  // Emit locally cached codes first for instant UI response
+  // 1. Emit locally cached codes first for instant UI response
   const initialCached = getCachedVouchers().map((c) => normalizeVoucherDoc(c, c.id));
   if (initialCached.length > 0) {
     callback(initialCached);
   }
+
+  // 2. Fetch server-persisted codes and merge
+  fetch('/api/vouchers/list')
+    .then((r) => r.json())
+    .then((res) => {
+      if (res.success && Array.isArray(res.vouchers)) {
+        saveCachedVouchers(res.vouchers);
+        callback(getCachedVouchers().map((c) => normalizeVoucherDoc(c, c.id)));
+      }
+    })
+    .catch((e) => console.warn('Notice fetching server vouchers:', e));
 
   const q = query(CODES_COLLECTION, orderBy('createdAt', 'desc'));
 
@@ -352,7 +374,27 @@ export async function redeemSubscriptionVoucherCode(params: {
 
   const normalizedCode = rawCode.trim().toUpperCase();
 
-  // 1. Locate code document in Firestore or fallback to local cache
+  // 1. Call server redemption endpoint first (strictly enforces single-use & database persistence)
+  let serverRedeemResult: any = null;
+  try {
+    const apiRes = await fetch('/api/vouchers/redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rawCode: normalizedCode, userId, userEmail }),
+    });
+    const apiJson = await apiRes.json();
+    if (!apiRes.ok) {
+      throw new Error(apiJson.error || 'فشل تفعيل كود الاشتراك.');
+    }
+    serverRedeemResult = apiJson;
+  } catch (apiErr: any) {
+    if (apiErr.message?.includes('تم استخدام') || apiErr.message?.includes('غير صالحة')) {
+      throw apiErr;
+    }
+    console.warn('Notice from server voucher redemption API:', apiErr);
+  }
+
+  // 2. Locate code document in Firestore or fallback to local cache
   let codeDocRef: any = null;
   let initialData: SubscriptionVoucherCode | null = null;
 
@@ -368,7 +410,13 @@ export async function redeemSubscriptionVoucherCode(params: {
     console.warn('Notice querying subscription code from Firestore:', firestoreQueryErr);
   }
 
-  // Fallback to locally cached codes if not found in Firestore or if query failed
+  // Fallback to server result or locally cached codes if not found in Firestore or if query failed
+  if (!initialData && serverRedeemResult?.voucher) {
+    initialData = normalizeVoucherDoc(serverRedeemResult.voucher, serverRedeemResult.voucher.id);
+    const codeDocId = serverRedeemResult.voucher.id || `code_${normalizedCode.replace(/[^A-Za-z0-9]/g, '_')}`;
+    codeDocRef = doc(db, 'subscription_codes', codeDocId);
+  }
+
   if (!initialData) {
     const cachedCodes = getCachedVouchers();
     const cachedMatch = cachedCodes.find((c) => c.code && c.code.trim().toUpperCase() === normalizedCode);

@@ -29,6 +29,8 @@ import {
   Github,
   Download,
   Settings,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { ProjectItem, ProjectVersion, AIChatMessage, GeneratedCode, PlatformAiEngine } from '../types';
 import { requestAIEdit, requestAIRepair } from '../services/aiBuilderService';
@@ -109,10 +111,23 @@ export const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({
 
   // Phase 4 & Phase 7: Project State, Publish, GitHub, ZIP & Settings Modals
   const [currentProject, setCurrentProject] = useState<ProjectItem>(project);
+  const [currentIframeRoute, setCurrentIframeRoute] = useState<string>('/');
   const [showPublishModal, setShowPublishModal] = useState<boolean>(false);
   const [showGitHubModal, setShowGitHubModal] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [isDownloadingZip, setIsDownloadingZip] = useState<boolean>(false);
+
+  // Listen to isolated internal route changes inside the generated site iframe
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'SAWWIHA_ROUTE_CHANGED') {
+        const nextRoute = e.data.route || e.data.path || '/';
+        setCurrentIframeRoute(nextRoute);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   useEffect(() => {
     setCurrentProject(project);
@@ -843,25 +858,52 @@ export const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({
                 }`}
               >
                 {/* Browser Mockup Top Bar */}
-                <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 flex items-center justify-between text-xs text-slate-500 shrink-0 select-none">
-                  <div className="flex items-center gap-1.5">
+                <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 flex items-center justify-between text-xs text-slate-500 shrink-0 select-none gap-2">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" />
                   </div>
 
-                  <div className="px-3 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-600 font-mono truncate max-w-[280px]">
-                    https://sawwiha.app/preview/{project.slug || 'my-project'}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          iframeRef.current?.contentWindow?.postMessage({ type: 'SAWWIHA_NAVIGATE_HISTORY', delta: -1 }, '*');
+                        } catch (e) {}
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-200 transition-colors cursor-pointer"
+                      title="السابق (Back)"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          iframeRef.current?.contentWindow?.postMessage({ type: 'SAWWIHA_NAVIGATE_HISTORY', delta: 1 }, '*');
+                        } catch (e) {}
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-200 transition-colors cursor-pointer"
+                      title="التالي (Forward)"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex-1 px-3 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-600 font-mono truncate max-w-[340px] flex items-center justify-between" dir="ltr">
+                    <span className="truncate">https://sawwiha.app/preview/{project.slug || 'my-project'}{currentIframeRoute === '/' ? '' : currentIframeRoute}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      موقع حي
+                      معزول 100%
                     </span>
                     <button
                       type="button"
                       onClick={handleOpenFullscreen}
-                      className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                      className="text-slate-400 hover:text-slate-700 cursor-pointer p-1 rounded hover:bg-slate-200"
                       title="فتح في نافذة كاملة"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />

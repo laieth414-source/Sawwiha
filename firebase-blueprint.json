@@ -203,12 +203,192 @@
         }
       },
       "required": ["id", "action", "adminEmail", "timestamp", "summary"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "User active or historical plan subscription document",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique subscription identifier"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Target Firebase Auth user UID"
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "User email address"
+        },
+        "planId": {
+          "type": "string",
+          "description": "Identifier of the subscribed plan (e.g. plan_pro)"
+        },
+        "planSlug": {
+          "type": "string",
+          "description": "Slug of the subscribed plan (e.g. pro)"
+        },
+        "planName": {
+          "type": "string",
+          "description": "Human-readable name of the subscribed plan"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the subscription (active, expired, canceled)"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Activation ISO timestamp"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "Expiration ISO timestamp"
+        },
+        "provider": {
+          "type": "string",
+          "description": "Fulfillment provider (manual_owner_grant, free, voucher)"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Operational notes or used voucher code"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last updated ISO timestamp"
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "UID of the user or admin who updated this record"
+        }
+      },
+      "required": ["id", "userId", "planId", "status", "startDate"]
+    },
+    "SubscriptionCode": {
+      "title": "SubscriptionCode",
+      "description": "Voucher activation code for plan subscriptions",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Document identifier (e.g. code_SAWWIHA_PRO_...)"
+        },
+        "code": {
+          "type": "string",
+          "description": "Uppercase alphanumeric activation code"
+        },
+        "planId": {
+          "type": "string",
+          "description": "Target plan identifier"
+        },
+        "planName": {
+          "type": "string",
+          "description": "Target plan display name"
+        },
+        "planSlug": {
+          "type": "string",
+          "description": "Target plan slug"
+        },
+        "durationMonths": {
+          "type": "number",
+          "description": "Subscription duration in months"
+        },
+        "durationLabel": {
+          "type": "string",
+          "description": "Human-readable duration label"
+        },
+        "status": {
+          "type": "string",
+          "description": "Code lifecycle status (unused, redeemed, cancelled)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation ISO timestamp"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Admin email or UID who generated the code"
+        },
+        "redeemedBy": {
+          "type": "string",
+          "description": "UID of the user who redeemed the code"
+        },
+        "redeemedByEmail": {
+          "type": "string",
+          "description": "Email of the user who redeemed the code"
+        },
+        "redeemedAt": {
+          "type": "string",
+          "description": "Redemption ISO timestamp"
+        },
+        "expiresAt": {
+          "type": "string",
+          "description": "Expiration ISO timestamp after redemption"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Admin notes for this code"
+        }
+      },
+      "required": ["id", "code", "planId", "status", "durationMonths"]
+    },
+    "PlatformPlan": {
+      "title": "PlatformPlan",
+      "description": "Subscription plan tier definition",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Plan unique identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Plan display name in Arabic"
+        },
+        "slug": {
+          "type": "string",
+          "description": "Unique URL identifier"
+        },
+        "price": {
+          "type": "number",
+          "description": "Plan pricing"
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency symbol"
+        },
+        "billingPeriod": {
+          "type": "string",
+          "description": "Billing cadence"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the plan is available"
+        },
+        "sortOrder": {
+          "type": "number",
+          "description": "Sort order index"
+        }
+      },
+      "required": ["id", "name", "slug", "price"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
       "description": "Collection of platform user profiles"
+    },
+    "/plans/{planId}": {
+      "schema": "PlatformPlan",
+      "description": "Collection of platform subscription plans"
+    },
+    "/subscriptions/{subId}": {
+      "schema": "Subscription",
+      "description": "Collection of user active and historical subscriptions"
+    },
+    "/subscription_codes/{codeId}": {
+      "schema": "SubscriptionCode",
+      "description": "Collection of subscription voucher redemption codes"
     },
     "/projects/{projectId}": {
       "schema": "Project",

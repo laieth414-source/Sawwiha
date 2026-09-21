@@ -1,0 +1,49 @@
+{
+  "C0Kdkaq8hoMfRwuK6BEY1iLcFjK2": {
+    "uid": "C0Kdkaq8hoMfRwuK6BEY1iLcFjK2",
+    "email": "laieth772@gmail.com",
+    "displayName": "مالك سَوّيها",
+    "planId": "plan_owner_unlimited",
+    "planSlug": "owner_unlimited",
+    "subscription": {
+      "id": "sub_owner_C0Kdkaq8hoMfRwuK6BEY1iLcFjK2",
+      "userId": "C0Kdkaq8hoMfRwuK6BEY1iLcFjK2",
+      "userEmail": "laieth772@gmail.com",
+      "planId": "plan_owner_unlimited",
+      "planSlug": "owner_unlimited",
+      "planName": "مالك — غير محدود",
+      "status": "active",
+      "startDate": "2026-09-21T09:07:14.128Z",
+      "endDate": null,
+      "provider": "manual_owner_grant",
+      "notes": "خطة المالك غير المحدودة الرسمية للمنصة",
+      "updatedAt": "2026-09-21T09:07:14.129Z",
+      "updatedBy": "C0Kdkaq8hoMfRwuK6BEY1iLcFjK2"
+    },
+    "lastSyncAt": "2026-09-21T09:16:14.946Z"
+  },
+  "fE4WPqYneXcOmo7FulZdayOUASG2": {
+    "uid": "fE4WPqYneXcOmo7FulZdayOUASG2",
+    "email": "fjskjgfrkjgfj@gmail.com",
+    "displayName": "ففففففف",
+    "planId": "plan_pro",
+    "planSlug": "pro",
+    "subscription": {
+      "id": "sub_1789982084804_fE4WPq",
+      "userId": "fE4WPqYneXcOmo7FulZdayOUASG2",
+      "userEmail": "fjskjgfrkjgfj@gmail.com",
+      "planId": "plan_pro",
+      "planSlug": "pro",
+      "planName": "خطة المحترفين",
+      "status": "active",
+      "startDate": "2026-09-21T09:14:44.804Z",
+      "endDate": "2026-10-21T09:14:44.804Z",
+      "provider": "voucher",
+      "notes": "تم تفعيل الاشتراك عبر كود الاشتراك: SW-PRO-XL4N-7D4C",
+      "updatedAt": "2026-09-21T09:14:44.804Z",
+      "updatedBy": "fE4WPqYneXcOmo7FulZdayOUASG2"
+    },
+    "lastSyncAt": "2026-09-21T09:37:33.560Z",
+    "updatedAt": "2026-09-21T09:14:44.804Z"
+  }
+}

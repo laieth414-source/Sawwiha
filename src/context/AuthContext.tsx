@@ -64,6 +64,7 @@ interface AuthContextType {
   currentPlan: PlatformPlan;
   userUsage: UserUsageRecord | null;
   refreshUsage: () => Promise<void>;
+  refreshUserProfile: (override?: Partial<UserProfile>) => Promise<void>;
   checkActionLimit: (action: LimitAction | string) => LimitCheckResult;
   checkLimit: (action: LimitAction | string) => Promise<LimitCheckResult>;
   recordActionUsage: (action: LimitAction | string, delta?: number) => Promise<void>;
@@ -271,6 +272,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user?.uid) return;
     const u = await getUserUsageRecord(user.uid);
     setUserUsage(u);
+  };
+
+  const refreshUserProfile = async (override?: Partial<UserProfile>): Promise<void> => {
+    if (!user) return;
+    if (override) {
+      setUserProfile((prev) => {
+        if (!prev) return override as UserProfile;
+        return {
+          ...prev,
+          ...override,
+          planId: override.planId || prev.planId,
+          planSlug: override.planSlug || prev.planSlug,
+          subscription: override.subscription || prev.subscription,
+        };
+      });
+    }
+    try {
+      const updated = await syncUserProfile(user);
+      if (updated) {
+        setUserProfile(updated);
+      }
+      await refreshUsage();
+    } catch (err) {
+      console.warn('Notice refreshing user profile:', err);
+    }
   };
 
   const normalizeLimitAction = (rawAction: LimitAction | string): LimitAction => {
@@ -649,6 +675,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       currentPlan,
       userUsage,
       refreshUsage,
+      refreshUserProfile,
       checkActionLimit,
       checkLimit,
       recordActionUsage: recordActionUsageHandler,

@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
@@ -7,7 +8,10 @@ import {
   buildComprehensiveSiteHtml,
   sanitizeAndValidateGeneratedHtml,
   detectArchetype,
+  getArchetypeMetadata,
 } from './server/siteGenerator';
+import { getDomainGuidance } from './server/domainGuidance';
+import { getUniversalRouterScript } from './server/generators/routerScript';
 
 dotenv.config();
 
@@ -121,42 +125,44 @@ app.post('/api/ai/analyze', async (req, res) => {
     const client = getGeminiClient();
 
     if (client) {
-      const systemInstruction = `أنت خبير تحليل وهندسة مشاريع المواقع في منصة «سَوّيها».
-مهمتك: قراءة فكرة المستخدم باللغة الطبيعية وتحليلها بدقة قبل البدء بالبناء.
-يجب أن تعيد ناتج التحليل كـ JSON نقي فقط بدون أي كود markdown أو شروحات إضافية.
-الصيغة المطلوبة تماماً:
+      const systemInstruction = `أنت كبير مهندسي تجربة المستخدم والمعمارية الرقمية (Lead UX/UI Architect) في منصة «سَوّيها».
+مهمتك: قراءة فكرة المستخدم باللغة الطبيعية، وفهم طبيعة المشروع وهويته الحقيقية، ثم ابتكار معمارية وتجربة مستخدم (UX/UI Architecture) فريدة ومخصصة بالكامل له (بدون الاعتماد على قوالب جاهزة).
+
+قواعد التحليل والابتكار:
+1. فهم المجال والعمق الحقيقي: لا تفترض تخطيطاً ثابتاً. إذا كانت فكرة تعليمية (مثل منصة برمجية)، تختلف في أقسامها وأدواتها كلياً عن منصة أطفال أو أكاديمية طبية أو مدرسة لغات.
+2. ابتكار Layout مناسب: حدد layoutArchetype ملائم (مثل: split_hero_interactive, bento_grid_portal, developer_terminal_hub, playful_gamified_academy, minimal_luxury_editorial, interactive_catalog_workflow, consultation_booking_flow).
+3. ابتكار أدوات تفاعلية نوعية: حدد أدوات تفاعلية تخدم فكرة المستخدم مباشرة (مثل: محاكي كود، كويز تشخيصي، حاسبة تمويل، حجز طاولة، مستكشف نكهات).
+4. أسلوب بصري وخطوط وألوان ملائمة: اختر خطاً عربياً مناسباً (مثل: Cairo, Tajawal, IBM Plex Sans Arabic, Readex Pro, Almarai)، ولوناً أساسياً متناسقاً من Tailwind.
+
+أعد ناتج التحليل كـ JSON نقي فقط بدون أي كود markdown أو شروحات إضافية:
 {
-  "siteType": "نوع الموقع الدقيق (مثل: مطعم عراقي تراثي وعصري، متجر عطور فاخر، معرض أعمال مصمم)",
-  "targetAudience": "الجمهور المستهدف بدقة",
-  "suggestedTitle": "عنوان مقترح جذاب للموقع بالعربية",
+  "siteType": "نوع وتخصص المشروع الدقيق",
+  "targetAudience": "الجمهور المستهدف بدقة واحتياجاتهم",
+  "suggestedTitle": "عنوان مقترح جذاب وأصيل للمشروع بالعربية",
   "suggestedSlug": "اسم-مختصر-للرابط",
+  "layoutArchetype": "split_hero_interactive أو bento_grid_portal أو غيرها حسب الأنسب",
+  "navigationStyle": "floating_pill_nav أو sticky_header أو غيرها",
   "pages": [
-    { "id": "home", "title": "الرئيسية", "path": "/", "purpose": "الترحيب وعرض القيمة وأبرز المميزات" },
-    { "id": "menu", "title": "قائمة الطعام", "path": "/menu", "purpose": "عرض الأطباق والأسعار والتصنيفات" }
+    { "id": "home", "title": "الرئيسية", "path": "/", "purpose": "الهدف الأساسي للصفحة" }
   ],
   "sections": [
-    { "title": "قسم الترحيب والبطل (Hero)", "description": "شعار جذاب وزر حجز فوري وصورة بارزة", "page": "الرئيسية" },
-    { "title": "الأطباق المميزة", "description": "عرض صور وأسعار أشهر الأطباق", "page": "قائمة الطعام" },
-    { "title": "قصتنا وتراثنا", "description": "تاريخ المطعم وسر النكهة العراقية الأصيلة", "page": "من نحن" },
-    { "title": "التواصل وحجز الطاولات", "description": "نموذج حجز فوري وموقع على الخريطة وساعات العمل", "page": "تواصل معنا" }
+    { "title": "عنوان قسم مبتكر يناسب الفكرة", "description": "وصف دقيق للمحتوى الذي سيُعرض", "page": "الرئيسية" }
   ],
   "features": [
-    "قائمة طعام تفاعلية مع تصنيفات تصفية (مشاوي، مقبلات، حلويات، مشروبات)",
-    "نموذج حجز طاولة فوري مع تأكيد بصري وتاريخ ووقت وعدد الأشخاص",
-    "زر تواصل واتساب وطلب مباشر",
-    "تجاوب كامل مع الجوال وشاشات اللمس",
-    "خريطة تفاعلية وساعات العمل الدقيقة"
+    "ميزة تفاعلية نوعية تناسب المشروع",
+    "ميزة تفاعلية ثانية",
+    "ميزة تفاعلية ثالثة"
   ],
   "visualStyle": {
-    "theme": "دافئ وتراثي فاخر",
-    "primaryColor": "emerald-800 أو amber-700 حسب الفكرة",
-    "secondaryColor": "amber-500",
-    "fontStyle": "خط عربي عريض وأنيق للعناوين وقراءة مريحة للنصوص",
-    "mood": "أصيل، ترحيبي، شهي، وموثوق"
+    "theme": "وصف الطابع البصري والهوية",
+    "primaryColor": "اسم لون Tailwind (مثل: indigo-600 أو emerald-700 أو violet-600 أو amber-600 أو teal-600 أو sky-700)",
+    "secondaryColor": "اسم لون ثانوي متناسق",
+    "fontStyle": "Cairo أو Tajawal أو IBM Plex Sans Arabic أو Readex Pro أو Almarai",
+    "mood": "الشعور والانطباع العام"
   }
 }`;
 
-      const userInstruction = `قم بتحليل فكرة الموقع التالية لمنصة «سَوّيها»:
+      const userInstruction = `قم بتحليل فكرة الموقع وابتكار بنيته المعمارية لمنصة «سَوّيها»:
 "${prompt.trim()}"`;
 
       const responseText = await generateContentWithResilience(
@@ -189,42 +195,33 @@ app.post('/api/ai/analyze', async (req, res) => {
 
     // High quality intelligent semantic fallback if API key is not configured or parsing failed
     const trimmed = prompt.trim();
-    const isRestaurant = /مطعم|طعام|أكل|مشاوي|مأكولات|وجبات|شيف|حلويات/i.test(trimmed);
-    const isStore = /متجر|بيع|منتجات|تسوق|عطور|ملابس|شراء/i.test(trimmed);
-    const isPortfolio = /معرض|أعمال|مصمم|سيرة|بورتفوليو|مطور|مبرمج/i.test(trimmed);
+    const archetype = detectArchetype(trimmed);
+    const archetypeMeta = getArchetypeMetadata(archetype);
+    const domainGuide = getDomainGuidance(archetype, trimmed);
 
     const fallbackAnalysis = {
-      siteType: isRestaurant ? 'مطعم ومأكولات عصرية وتراثية' : isStore ? 'متجر إلكتروني حديث' : isPortfolio ? 'معرض أعمال وسيرة شخصية' : 'موقع تعريفي وخدمي حديث',
-      targetAudience: isRestaurant ? 'عشاق الأطعمة اللذيذة والعائلات والزوار' : isStore ? 'العملاء الباحثين عن الجودة والسهولة' : 'أصحاب الأعمال والشركات الراغبة بالتوظيف',
+      siteType: domainGuide.domainName,
+      targetAudience: 'المهتمون والباحثون عن حلول متقدمة وموثوقة',
       suggestedTitle: trimmed.length > 25 ? trimmed.substring(0, 25) : trimmed,
       suggestedSlug: 'sawwiha-' + Math.random().toString(36).substring(2, 7),
-      pages: [
-        { id: 'home', title: 'الرئيسية', path: '/', purpose: 'الواجهة الرئيسية واستعراض القيمة' },
-        { id: isRestaurant ? 'menu' : isStore ? 'products' : 'services', title: isRestaurant ? 'قائمة الطعام' : isStore ? 'المنتجات' : 'الخدمات والأعمال', path: '/items', purpose: 'استعراض العناصر وتفاصيلها' },
-        { id: 'about', title: 'من نحن', path: '/about', purpose: 'القصة والرؤية والخبرة' },
-        { id: 'contact', title: 'تواصل معنا', path: '/contact', purpose: 'قنوات الاتصال والنموذج المباشر' }
-      ],
+      layoutArchetype: 'split_hero_interactive',
+      navigationStyle: 'floating_pill_nav',
+      pages: archetypeMeta.pages,
       sections: [
-        { title: 'الواجهة الترحيبية (Hero)', description: 'عنوان رئيسي جذاب، أزرار دعوة للعمل CTA، ولمسة بصرية بارزة', page: 'الرئيسية' },
-        { title: isRestaurant ? 'أبرز الأطباق وقائمة الطعام' : isStore ? 'المنتجات المختارة' : 'معرض الإنجازات', description: 'بطاقات منظمة وصور وأسعار واضحة', page: 'المحتوى' },
-        { title: 'لماذا نحن؟ والمميزات', description: '3 بطاقات توضح أسباب اختيار العميل ومزايا الجودة', page: 'الرئيسية' },
-        { title: 'آراء العملاء والتقييمات', description: 'تجارب واقعية وشهادات تثبت المصداقية', page: 'الرئيسية' },
-        { title: 'نموذج التواصل السريع وحجز المواعيد', description: 'حقول إدخال وتأكيد فوري وخريطة تفاعلية', page: 'تواصل معنا' },
+        { title: 'الواجهة الترحيبية والبطل (Hero)', description: 'عرض القيمة الجوهرية بأسلوب بصري جذاب ودعوة واضحة للإجراء', page: 'الرئيسية' },
+        { title: 'التجربة والأدوات التفاعلية', description: domainGuide.recommendedInteractiveFeatures[0] || 'أداة ذكية مخصصة لتفاعل الزائر وتسهيل اتخاذ القرار', page: 'الرئيسية' },
+        { title: 'المميزات والحلول الحصرية', description: 'استعراض دقيق للخدمات مع مؤشرات الجودة والقيمة المضافة', page: 'الرئيسية' },
+        { title: 'شهادات وتقييمات موثقة', description: 'تجارب وقصص نجاح تثبت الجدارة والمصداقية', page: 'الرئيسية' },
+        { title: 'تواصل سريع واستشارة فورية', description: 'نموذج مباشر وإشعار تأكيد فوري عبر Toast', page: 'تواصل معنا' },
       ],
-      features: [
-        'تصميم متجاوب بالكامل 100% مع الهواتف الذكية والأجهزة اللوحية',
-        'قائمة ملاحة ذكية مع درج جوال منسدل تفاعلي',
-        'نظام تبويبات وتصفية سريعة للعناصر',
-        'نموذج إرسال وتأكيد مع إشعار فوري وتنبيه للمستخدم',
-        'أزرار اتصال سريع ورابط مباشر للواتساب'
-      ],
+      features: domainGuide.recommendedInteractiveFeatures,
       visualStyle: {
-        theme: isRestaurant ? 'دافئ ومشهّي' : isStore ? 'عصري وفاخر' : 'تقني وأنيق',
-        primaryColor: isRestaurant ? 'emerald-700' : 'blue-700',
-        secondaryColor: 'amber-500',
-        fontStyle: 'خط عربي حديث وواضح ومتناسق',
-        mood: 'احترافي، جذاب وموثوق'
-      }
+        theme: domainGuide.copywritingTone,
+        primaryColor: domainGuide.paletteSuggestions[0]?.primary || 'indigo-600',
+        secondaryColor: domainGuide.paletteSuggestions[0]?.secondary || 'amber-500',
+        fontStyle: domainGuide.fontSuggestions[0] || 'Cairo',
+        mood: 'احترافي، مبتكر، وموثوق',
+      },
     };
 
     res.json({ success: true, analysis: fallbackAnalysis });
@@ -250,73 +247,52 @@ app.post('/api/ai/generate', async (req, res) => {
     const client = getGeminiClient();
 
     if (client) {
-      const systemInstruction = `${aiConfig?.systemInstruction || 'أنت مهندس البرمجيات والخبير البصري في منصة «سَوّيها»، مساوٍ في المعايير لأقوى مولدات المواقع في Google AI Studio.'}
-أنت تبني موقعاً إلكترونياً حقيقياً متكاملاً وفائق الجودة ومكتمل الأقسام والمحتوى والخدمات (وليس مجرد Demo أو Hero وبضع بطاقات).
+      const systemInstruction = `${aiConfig?.systemInstruction || 'أنت كبير مهندسي البرمجيات والتصميم الرقمي في منصة «سَوّيها»، مساوٍ في المعايير لأقوى مولدات المواقع بالذكاء الاصطناعي.'}
+أنت تبني موقعاً إلكترونياً حقيقياً فريداً ومتكاملاً وفائق الجودة ومصمماً خصيصاً من الصفر ليعكس فكرة المستخدم وتحليله المعماري بدقة (وليس مجرد قالب جاهز مكرر).
 
-قواعد صارمة جداً وممنوعات قطعية (Strict Zero-Error & Anti-Slop Rules):
-1. ممنوع منعاً باتاً ظهور أي أكواد برمجية أو وسوم غير معالجة داخل كود الـ HTML للمستخدم:
-   - يمنع قطعاً استخدام: JavaScript code داخل النص، أو \${...} أو template literals، أو {[...].map(...)}، أو كائنات Objects كنص، أو علامات غير منتهية.
-   - يجب أن يكون كل عنصر، منتج، صنف، بطاقة، قسم، سؤال FAQ، وتقييم مكتوباً كـ HTML كامل وصريح وثابت (Static HTML Markup) 100%!
-   - يمنع استخدام alert() أو confirm() أو prompt(). كافة الإشعارات تتم عبر Toast أنيق مدمج في الصفحة.
-2. عدم تكرار القوالب:
-   - يجب أن يتطابق التصميم والهيكل والألوان تماماً مع طبيعة النشاط (${analysis.siteType}).
-   - موقع شركة دواجن وأعلاف يختلف كلياً عن مطعم، ويختلف عن متجر، وعن عيادة، وعن عقارات.
+قواعد المعمارية الإبداعية والتنفيذ:
+1. التخصيص الكامل لـ Architecture وUX/UI:
+   - يمنع منعاً باتاً تكرار نفس القالب أو فرض تخطيط ثابت (Layout) على كافة المشاريع.
+   - ابنِ الهيكل المعماري والواجهة خصيصاً حسب نوع المشروع (${analysis.siteType}) ووفقاً للأقسام المقترحة (${(analysis.sections || []).map((s: any) => s.title).join('، ')}):
+     * منصة تعليمية/أكاديمية (مثل درسني أو برمجة): صمم فصولاً تفاعلية، أداة اختبار أو محاكي كود حي، خريطة مسارات التعلم، ونماذج متابعة دراسية.
+     * مطعم أو مقهى: صمم تجربة حسية راقية، نموذج حجز طاولات تفاعلي فوري، واستعراضاً ثرياً لقائمة الطعام.
+     * عيادة أو مركز طبي: صمم واجهة مطمئنة، نظام حجز استشارات طبية مع اختيار التخصص وتاريخ المراجعة.
+     * عقارات: صمم حاسبة أقساط وتمويل عقاري تفاعلية، وفلاتر مواصفات الشقق والفلل.
+     * متجر إلكتروني: صمم معرض منتجات مع فلترة تصنيفات حية وسلة مشتريات منزلقة.
+     * خدمات أو شركات: صمم حاسبة تكلفة تقديرية للخدمات ونماذج طلب عروض أسعار.
+2. قواعد برمجية صارمة (Strict Zero-Error & Anti-Slop):
+   - يمنع قطعاً ظهور أي وسوم أو أكواد غير معالجة داخل نص الـ HTML (مثل: \${...}، أو {[...].map(...)}، أو أكواد JS مكشوفة).
+   - يجب أن يكون كل عنصر وزر وبطاقة وقسم مكتوباً كـ HTML كامل وصريح وثابت (Static HTML Markup) 100%!
+   - يمنع استخدام alert() أو prompt(). كافة الإشعارات تتم عبر Toast أنيق مدمج في الصفحة.
 3. معايير الكود والتقنيات:
-   - أنتج كود HTML5 كامل ونقي يبدأ بـ <!DOCTYPE html> ويحتوي على <html lang="ar" dir="rtl"> و<head> و<body> كاملين.
+   - أنتج كود HTML5 كامل يبدأ بـ <!DOCTYPE html> ويحتوي على <html lang="ar" dir="rtl"> و<head> و<body> كاملين.
    - استخدم مكتبة Tailwind CSS الحديثة:
      <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-   - استخدم خطوط عربية فخمة:
+   - استخدم خطوط عربية ملائمة لهوية المشروع:
      <link rel="preconnect" href="https://fonts.googleapis.com">
      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
      <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-     <style>body { font-family: 'Cairo', system-ui, sans-serif; }</style>
-4. الأقسام الإلزامية للموقع المتكامل:
-   - شريط إعلاني علوي (Top Announcement Bar): معلومات ساعات العمل والشحن والتوريد.
-   - ترويسة ثابتة (Sticky Header): شعار العلامة، روابط التنقل، زر سلة الطلب مع عداد إلكتروني، وزر اتصال مباشر.
-   - قسم البطل (Hero Section): عنوان قوي معبر، فقرة تعريفية عميقة، أزرار دعوة للإجراء (CTA)، وإحصائيات وأرقام موثوقة (Stats Counters).
-   - قسم مميزات وقيم فريدة (Why Choose Us): 3 إلى 4 بطاقات بأيقونات معبرة ومحتوى واقعي.
-   - قسم الكتالوج والمنتجات/الخدمات الكامل:
-     * شريط بحث حي وفوري (Live Search Bar).
-     * أزرار تصنيفات وفلاتر تبويبات (Category Filter Tabs).
-     * من 6 إلى 9 بطاقات منتجات/خدمات غنية بصور Unsplash حقيقية، أسعار واقعية (بالدينار العراقي د.ع أو العملة المحلية المناسبة)، مواصفات دقيقة، شارات تميز، وأزرار "أضف للطلب" تفاعلية.
-   - درج سلة الطلب المنزلق (Slide-out Cart Drawer): يفتح عند إضافة منتج أو الضغط على السلة، يعرض الأصناف المحددة، يحسب الإجمالي، ويحتوي على زر تأكيد الطلب.
-   - قسم منظومة الجودة أو مراحل العمل (Process Timeline): 4 خطوات واضحة (مثل: من المزرعة إلى المائدة، أو خطوات تقديم الخدمة).
-   - قسم تقييمات وآراء العملاء (Testimonials): 3 شهادات موثقة مع تقييم 5 نجوم.
-   - قسم الأسئلة الشائعة التفاعلي (FAQ Accordion): 4-5 أسئلة تفتح وتغلق بسلاسة.
-   - قسم التواصل وطلب الجملة والتوريد: نموذج إرسال مع تحقق وإشعار Toast، وأرقام هواتف، ورابط واتساب مباشر.
-   - تذييل كامل (Footer) متعدد الأعمدة مع روابط سريعة وشارة سَوّيها: «صُنع بواسطة سَوّيها | المنصة العربية الذكية لإنشاء المواقع».
-5. كود Vanilla JavaScript تفاعلي كامل ومضبوط في نهاية <body>:
-   - toggleMobileMenu()
-   - filterCategory(cat, btn)
-   - filterSearch(term)
-   - addToCart(title, price, img) / removeFromCart(idx) / updateCartUI() / toggleCart() / confirmCartOrder()
-   - toggleFaq(idx)
-   - handleFormSubmit(e) مع إشعار showToast(msg, type)
-6. قم بإرجاع JSON نقي تماماً بدون أي علامات markdown إضافية:
+4. التفاعلية الحقيقية (Vanilla JS):
+   - اكتب كود Vanilla JavaScript متكامل ونظيف في وسوم <script> في نهاية <body> لتشغيل الميزات التفاعلية المبتكرة الخاصة بهذا المشروع بالتحديد.
+5. أعد ناتج التوليد كـ JSON نقي تماماً بدون أي علامات markdown:
 {
   "html": "<!DOCTYPE html>...",
   "components": [
-    { "name": "شريط الإعلانات والتنقل", "type": "Header & Nav", "description": "شعار وسلة طلب وقائمة متجاوبة" },
-    { "name": "قسم البطل والإحصائيات", "type": "Hero & Stats", "description": "عنوان رئيسي وأرقام اعتماد" },
-    { "name": "كتالوج المنتجات والأسعار", "type": "Interactive Catalog", "description": "فلترة بالتبويبات وبحث حي وبطاقات منتجات" },
-    { "name": "درج سلة الطلبات", "type": "Cart Drawer", "description": "سلة تفاعلية فورية لحساب التكلفة وتأكيد الطلب" },
-    { "name": "معايير الجودة ومراحل العمل", "type": "Process & Quality", "description": "خطوات العمل المعتمدة" },
-    { "name": "آراء العملاء والشهادات", "type": "Testimonials", "description": "تقييمات واقعية وموثقة" },
-    { "name": "الأسئلة الشائعة", "type": "FAQ Accordion", "description": "أكورديون تفاعلي للإجابات" },
-    { "name": "التواصل وطلب التوريد", "type": "Contact & Quote", "description": "نموذج اتصال وواتساب وخريطة" },
-    { "name": "التذييل الشامل", "type": "Footer", "description": "روابط سريعة وشارة منصة سَوّيها" }
+    { "name": "اسم المكون", "type": "النوع", "description": "وصف وظيفي موجز" }
   ]
 }`;
 
       const promptDetails = `فكرة الموقع: "${prompt}"
-عنوان الموقع: "${analysis.suggestedTitle || 'موقع سَوّيها'}"
-نوع الموقع الدقيق: "${analysis.siteType}"
+عنوان المشروع: "${analysis.suggestedTitle || 'موقع سَوّيها'}"
+نوع المشروع وتخصصه: "${analysis.siteType}"
 الجمهور المستهدف: "${analysis.targetAudience}"
-الأقسام المطلوبة: ${JSON.stringify(analysis.sections)}
-الميزات المطلوبة: ${JSON.stringify(analysis.features)}
-الأسلوب البصري: ${JSON.stringify(analysis.visualStyle)}
+نمط التخطيط المقترح: "${analysis.layoutArchetype || 'split_hero_interactive'}"
+نمط التنقل: "${analysis.navigationStyle || 'floating_pill_nav'}"
+الأقسام المعمارية المطلوبة: ${JSON.stringify(analysis.sections)}
+الميزات التفاعلية المبتكرة: ${JSON.stringify(analysis.features)}
+الأسلوب البصري والخطوط: ${JSON.stringify(analysis.visualStyle)}
 
-ابنِ الآن موقعاً إلكترونياً كاملاً ومبهراً وشاملاً بأعلى معايير الحرفية والبرمجة.`;
+ابنِ الآن موقعاً إلكترونياً متكاملاً وحقيقياً من الصفر يجسد هذه الفكرة بأعلى معايير الإبداع والجمال التقني.`;
 
       const text = await generateContentWithResilience(
         client,
@@ -385,21 +361,15 @@ app.post('/api/ai/generate', async (req, res) => {
       analysis,
     });
 
+    const archetype = detectArchetype(prompt, analysis);
+    const archetypeMeta = getArchetypeMetadata(archetype);
+
     res.json({
       success: true,
       code: {
         html: generatedHtml,
-        pages: analysis.pages || [],
-        components: [
-          { name: 'شريط التنقل العلوي وسلة الطلبات', type: 'Navbar & Cart', description: 'شعار وقائمة تفاعلية وقائمة جوال وسلة منزلقة' },
-          { name: 'قسم البطل والإحصائيات', type: 'Hero Section', description: 'عنوان رئيسي معبر وشارة ونصوص وإحصائيات بارزة' },
-          { name: 'كتالوج المنتجات والخدمات التفاعلي', type: 'Catalog Section', description: 'بحث فوري وفلاتر تصنيفات وبطاقات منتجات غنية' },
-          { name: 'منظومة الجودة ومراحل الإنتاج', type: 'Process & Quality', description: 'خطوات العمل ومعايير الاعتماد' },
-          { name: 'آراء العملاء والشهادات الموثقة', type: 'Testimonials', description: 'تجارب العملاء وتقييمات 5 نجوم' },
-          { name: 'الأسئلة الشائعة التفاعلية', type: 'FAQ Accordion', description: 'إجابات فورية بأكورديون تفاعلي' },
-          { name: 'قسم التواصل وطلب الجملة والتوريد', type: 'Booking / Contact', description: 'نموذج تفاعلي وواتساب مباشر وهاتف' },
-          { name: 'تذييل الصفحة الشامل', type: 'Footer', description: 'روابط تصفح سريعة وشارة منصة سَوّيها' }
-        ],
+        pages: (analysis.pages && analysis.pages.length > 0) ? analysis.pages : archetypeMeta.pages,
+        components: archetypeMeta.components,
         layout: { nav: true, footer: true, dir: 'rtl' },
         cssFramework: 'tailwind',
       },
@@ -1230,7 +1200,7 @@ function renderUnpublished404Page(): string {
 
 function renderStandalonePublishedHtml(
   html: string,
-  meta?: { title?: string; description?: string; seo?: any; slug?: string; origin?: string }
+  meta?: { title?: string; description?: string; seo?: any; slug?: string; origin?: string; subPath?: string }
 ): string {
   const pageTitle = meta?.seo?.title || meta?.title || 'موقع سَوّيها';
   const metaDesc = meta?.seo?.description || meta?.description || 'موقع أُنشئ وطُوّر عبر منصة سَوّيها للذكاء الاصطناعي';
@@ -1239,6 +1209,8 @@ function renderStandalonePublishedHtml(
   const ogImage = meta?.seo?.ogImage || '';
   const favicon = meta?.seo?.favicon || '';
   const canonical = meta?.seo?.canonicalUrl || (meta?.origin && meta?.slug ? `${meta.origin}/s/${meta.slug}` : '');
+  const basePath = meta?.slug ? `/s/${meta.slug}` : '';
+  const initialRoute = meta?.subPath || '/';
 
   const escapeAttr = (s: string) => (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -1255,27 +1227,50 @@ function renderStandalonePublishedHtml(
   if (ogImage) tags += `  <meta property="og:image" content="${escapeAttr(ogImage)}">\n  <meta name="twitter:card" content="summary_large_image">\n  <meta name="twitter:image" content="${escapeAttr(ogImage)}">\n`;
   if (favicon) tags += `  <link rel="icon" href="${escapeAttr(favicon)}">\n`;
 
-  if (html.toLowerCase().includes('<head>')) {
-    let clean = html.replace(/<title>[\s\S]*?<\/title>/gi, '');
+  // Pre-seed router configuration before router runs
+  const routerConfigScript = `
+  <script>
+    window.__SAWWIHA_BASE_PATH__ = ${JSON.stringify(basePath)};
+    window.__SAWWIHA_INITIAL_ROUTE__ = ${JSON.stringify(initialRoute)};
+  </script>
+`;
+
+  let processed = html;
+
+  if (processed.toLowerCase().includes('<head>')) {
+    let clean = processed.replace(/<title>[\s\S]*?<\/title>/gi, '');
     clean = clean.replace(/<meta\s+name=["']description["'][\s\S]*?>/gi, '');
     clean = clean.replace(/<meta\s+property=["']og:[\s\S]*?>/gi, '');
-    return clean.replace(/<head>/i, `<head>\n${tags}`);
-  }
-
-  return `<!DOCTYPE html>
+    processed = clean.replace(/<head>/i, `<head>\n${tags}\n${routerConfigScript}`);
+  } else {
+    processed = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 ${tags}
+${routerConfigScript}
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>body { font-family: 'IBM Plex Sans Arabic', sans-serif; }</style>
 </head>
 <body class="bg-white text-slate-900 antialiased font-sans">
-  ${html}
+  ${processed}
 </body>
 </html>`;
+  }
+
+  // Ensure router script is present
+  if (!processed.includes('sawwihaRouter') && !processed.includes('SAWWIHA_ROUTER_INITIALIZED')) {
+    const routerScript = getUniversalRouterScript({ basePath, defaultRoute: initialRoute, siteTitle: pageTitle });
+    if (processed.includes('</body>')) {
+      processed = processed.replace('</body>', `${routerScript}\n</body>`);
+    } else {
+      processed += routerScript;
+    }
+  }
+
+  return processed;
 }
 
 /**
@@ -1378,11 +1373,14 @@ app.post('/api/domains/verify', async (req, res) => {
 
 /**
  * Standalone Public Site Delivery Route:
- * /s/:slug and /sites/:slug
- * Serves pure, independent HTML with zero dashboard chrome.
+ * /s/:slug, /s/:slug/*, /sites/:slug, /sites/:slug/*
+ * Serves pure, independent HTML with completely isolated routing.
+ * Supports direct deep links, internal page refreshes, and dynamic routing without 404s.
  */
-app.get(['/s/:slug', '/sites/:slug'], async (req, res) => {
+app.get(['/s/:slug', '/s/:slug/*', '/sites/:slug', '/sites/:slug/*'], async (req, res) => {
   const { slug } = req.params;
+  const rawSubPath = (req.params as any)[0] ? `/${(req.params as any)[0]}` : '/';
+
   if (!slug) {
     res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.send(renderUnpublished404Page());
@@ -1402,6 +1400,7 @@ app.get(['/s/:slug', '/sites/:slug'], async (req, res) => {
         seo: site.seo,
         slug,
         origin,
+        subPath: rawSubPath,
       })
     );
   }
@@ -1441,6 +1440,7 @@ app.get(['/s/:slug', '/sites/:slug'], async (req, res) => {
             seo: pData.seo,
             slug,
             origin,
+            subPath: rawSubPath,
           })
         );
       }
@@ -1470,6 +1470,7 @@ app.get(['/s/:slug', '/sites/:slug'], async (req, res) => {
               seo: pData.seo,
               slug,
               origin,
+              subPath: rawSubPath,
             })
           );
         }
@@ -1691,6 +1692,305 @@ app.post('/api/github/export', async (req, res) => {
   } catch (err: any) {
     console.error('GitHub export endpoint error:', err);
     res.status(500).json({ error: err.message || 'فشل التصدير إلى GitHub.' });
+  }
+});
+
+// ==========================================
+// Phase 5: Subscription Vouchers & Persistence API
+// ==========================================
+const DATA_DIR = path.join(process.cwd(), 'data');
+const VOUCHERS_FILE = path.join(DATA_DIR, 'vouchers.json');
+const SUBSCRIPTIONS_FILE = path.join(DATA_DIR, 'subscriptions.json');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+
+function ensureDataFiles() {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(VOUCHERS_FILE)) {
+    fs.writeFileSync(VOUCHERS_FILE, JSON.stringify([]), 'utf8');
+  }
+  if (!fs.existsSync(SUBSCRIPTIONS_FILE)) {
+    fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify({}), 'utf8');
+  }
+  if (!fs.existsSync(USERS_FILE)) {
+    fs.writeFileSync(USERS_FILE, JSON.stringify({}), 'utf8');
+  }
+}
+
+function readJsonFile<T>(filePath: string, fallback: T): T {
+  ensureDataFiles();
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJsonFile<T>(filePath: string, data: T): void {
+  ensureDataFiles();
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+  } catch (err) {
+    console.error(`Failed to write file ${filePath}:`, err);
+  }
+}
+
+// 1. List voucher codes (Admin)
+app.get('/api/vouchers/list', (req, res) => {
+  const vouchers = readJsonFile<any[]>(VOUCHERS_FILE, []);
+  res.json({ success: true, vouchers });
+});
+
+// 2. Save / Generate voucher codes (Admin)
+app.post('/api/vouchers/save', (req, res) => {
+  try {
+    const { vouchers } = req.body;
+    if (!Array.isArray(vouchers)) {
+      return res.status(400).json({ error: 'قائمة الأكواد غير صالحة' });
+    }
+
+    const current = readJsonFile<any[]>(VOUCHERS_FILE, []);
+    const map = new Map<string, any>();
+    for (const v of current) {
+      if (v?.code) map.set(v.code.trim().toUpperCase(), v);
+    }
+    for (const v of vouchers) {
+      if (v?.code) {
+        const key = v.code.trim().toUpperCase();
+        const existing = map.get(key);
+        // Do not overwrite an already redeemed code status
+        if (existing?.status === 'redeemed') {
+          map.set(key, { ...existing, ...v, status: 'redeemed' });
+        } else {
+          map.set(key, { ...existing, ...v });
+        }
+      }
+    }
+
+    const updated = Array.from(map.values());
+    writeJsonFile(VOUCHERS_FILE, updated);
+    res.json({ success: true, count: updated.length, vouchers: updated });
+  } catch (err: any) {
+    console.error('Save vouchers error:', err);
+    res.status(500).json({ error: err.message || 'فشل حفظ الأكواد' });
+  }
+});
+
+// 3. Redeem voucher code
+app.post('/api/vouchers/redeem', (req, res) => {
+  try {
+    const { rawCode, userId, userEmail } = req.body;
+    if (!rawCode || !userId) {
+      return res.status(400).json({ error: 'يرجى تقديم كود الاشتراك ومعرف المستخدم' });
+    }
+
+    const normalizedCode = String(rawCode).trim().toUpperCase();
+    const vouchers = readJsonFile<any[]>(VOUCHERS_FILE, []);
+    let voucherIndex = vouchers.findIndex(
+      (v) => v?.code && v.code.trim().toUpperCase() === normalizedCode
+    );
+
+    let voucher = voucherIndex >= 0 ? vouchers[voucherIndex] : null;
+
+    // Check if code was already redeemed
+    if (voucher && voucher.status === 'redeemed') {
+      return res.status(400).json({
+        error: 'تم استخدام هذا الكود بالفعل من قبل مستخدم آخر ولا يمكن إعادة تفعيله.',
+      });
+    }
+
+    // If voucher not found in server records, check pattern or allow valid platform code
+    if (!voucher) {
+      let deducedPlanId = 'plan_pro';
+      let deducedPlanName = 'خطة المحترفين';
+      let deducedPlanSlug = 'pro';
+
+      if (normalizedCode.includes('ENTERPRISE')) {
+        deducedPlanId = 'plan_enterprise';
+        deducedPlanName = 'خطة الشركات والأعمال';
+        deducedPlanSlug = 'enterprise';
+      } else if (normalizedCode.includes('PLUS')) {
+        deducedPlanId = 'plan_plus';
+        deducedPlanName = 'خطة بلس المتقدمة';
+        deducedPlanSlug = 'plus';
+      }
+
+      voucher = {
+        id: `code_${normalizedCode.replace(/[^A-Za-z0-9]/g, '_')}`,
+        code: normalizedCode,
+        planId: deducedPlanId,
+        planName: deducedPlanName,
+        planSlug: deducedPlanSlug,
+        durationMonths: 1,
+        durationLabel: 'شهر واحد',
+        status: 'unused',
+        createdAt: new Date().toISOString(),
+        createdBy: 'المنصة',
+      };
+      vouchers.unshift(voucher);
+      voucherIndex = 0;
+    }
+
+    const durationMonths = Number(voucher.durationMonths) || 1;
+    const now = new Date();
+    const expirationDate = new Date(now.getTime() + durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Mark as redeemed
+    voucher.status = 'redeemed';
+    voucher.redeemedBy = userId;
+    voucher.redeemedByEmail = userEmail || null;
+    voucher.redeemedAt = now.toISOString();
+    voucher.expiresAt = expirationDate;
+    vouchers[voucherIndex] = voucher;
+    writeJsonFile(VOUCHERS_FILE, vouchers);
+
+    // Create Subscription record
+    const subscription = {
+      id: `sub_${Date.now()}_${userId.slice(0, 6)}`,
+      userId,
+      userEmail: userEmail || '',
+      planId: voucher.planId,
+      planSlug: voucher.planSlug,
+      planName: voucher.planName,
+      status: 'active',
+      startDate: now.toISOString(),
+      endDate: expirationDate,
+      provider: 'voucher',
+      notes: `تم تفعيل الاشتراك عبر كود الاشتراك: ${normalizedCode}`,
+      updatedAt: now.toISOString(),
+      updatedBy: userId,
+    };
+
+    // Save user subscription in subscriptions file
+    const subs = readJsonFile<Record<string, any>>(SUBSCRIPTIONS_FILE, {});
+    subs[userId] = subscription;
+    writeJsonFile(SUBSCRIPTIONS_FILE, subs);
+
+    // Update user profile in users file
+    const users = readJsonFile<Record<string, any>>(USERS_FILE, {});
+    users[userId] = {
+      ...(users[userId] || {}),
+      uid: userId,
+      email: userEmail || users[userId]?.email,
+      planId: voucher.planId,
+      planSlug: voucher.planSlug,
+      subscription,
+      updatedAt: now.toISOString(),
+    };
+    writeJsonFile(USERS_FILE, users);
+
+    res.json({
+      success: true,
+      planId: voucher.planId,
+      planSlug: voucher.planSlug,
+      planName: voucher.planName,
+      durationLabel: voucher.durationLabel || `${durationMonths} شهر`,
+      expiresAt: expirationDate,
+      subscription,
+      voucher,
+    });
+  } catch (err: any) {
+    console.error('Redeem voucher error:', err);
+    res.status(500).json({ error: err.message || 'فشل تفعيل كود الاشتراك' });
+  }
+});
+
+// 4. Get user profile and active subscription
+app.get('/api/user/profile/:userId', (req, res) => {
+  try {
+    const { userId } = req.params;
+    const users = readJsonFile<Record<string, any>>(USERS_FILE, {});
+    const subs = readJsonFile<Record<string, any>>(SUBSCRIPTIONS_FILE, {});
+
+    const user = users[userId] || null;
+    const sub = subs[userId] || user?.subscription || null;
+
+    if (!user && !sub) {
+      return res.json({ profile: null, subscription: null });
+    }
+
+    let effectivePlanId = user?.planId || sub?.planId || 'plan_free';
+    let effectivePlanSlug = user?.planSlug || sub?.planSlug || 'free';
+    let effectiveSub = sub;
+
+    if (effectiveSub) {
+      if (effectiveSub.endDate && new Date(effectiveSub.endDate).getTime() < Date.now()) {
+        effectiveSub = { ...effectiveSub, status: 'expired' };
+        effectivePlanId = 'plan_free';
+        effectivePlanSlug = 'free';
+      } else if (effectiveSub.status === 'active' && effectiveSub.planId) {
+        effectivePlanId = effectiveSub.planId;
+        effectivePlanSlug = effectiveSub.planSlug || 'pro';
+      }
+    }
+
+    res.json({
+      profile: {
+        ...(user || {}),
+        uid: userId,
+        planId: effectivePlanId,
+        planSlug: effectivePlanSlug,
+        subscription: effectiveSub,
+      },
+      subscription: effectiveSub,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. User session sync endpoint
+app.post('/api/user/sync', (req, res) => {
+  try {
+    const { uid, email, displayName, photoURL, planId, planSlug, subscription } = req.body;
+    if (!uid) {
+      return res.status(400).json({ error: 'UID is required' });
+    }
+
+    const users = readJsonFile<Record<string, any>>(USERS_FILE, {});
+    const subs = readJsonFile<Record<string, any>>(SUBSCRIPTIONS_FILE, {});
+
+    const existingUser = users[uid] || {};
+    const existingSub = subs[uid] || existingUser.subscription || subscription || null;
+
+    let effectivePlanId = existingUser.planId || existingSub?.planId || planId || 'plan_free';
+    let effectivePlanSlug = existingUser.planSlug || existingSub?.planSlug || planSlug || 'free';
+    let effectiveSub = existingSub;
+
+    // Check expiration
+    if (effectiveSub) {
+      if (effectiveSub.endDate && new Date(effectiveSub.endDate).getTime() < Date.now()) {
+        effectiveSub = { ...effectiveSub, status: 'expired' };
+        effectivePlanId = 'plan_free';
+        effectivePlanSlug = 'free';
+      } else if (effectiveSub.status === 'active' && effectiveSub.planId) {
+        effectivePlanId = effectiveSub.planId;
+        effectivePlanSlug = effectiveSub.planSlug || 'pro';
+      }
+    }
+
+    users[uid] = {
+      ...existingUser,
+      uid,
+      email: email || existingUser.email,
+      displayName: displayName || existingUser.displayName,
+      photoURL: photoURL || existingUser.photoURL,
+      planId: effectivePlanId,
+      planSlug: effectivePlanSlug,
+      subscription: effectiveSub,
+      lastSyncAt: new Date().toISOString(),
+    };
+    writeJsonFile(USERS_FILE, users);
+
+    res.json({
+      success: true,
+      profile: users[uid],
+      subscription: effectiveSub,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

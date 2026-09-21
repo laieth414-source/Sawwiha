@@ -32,95 +32,131 @@ export async function syncUserProfile(user: User): Promise<UserProfile> {
   const userRef = doc(db, 'users', user.uid);
   const isOwnerUser = isPlatformOwner(user, null);
 
+  // 1. Check local backup subscription first
+  let localSub: UserSubscription | null = null;
   try {
-    const existingSnap = await getDoc(userRef);
-    if (existingSnap.exists()) {
-      const data = existingSnap.data() as UserProfile;
-      const finalRole: 'owner' | 'user' = isOwnerUser ? 'owner' : (data.role || 'user');
-      
-      // If owner, enforce the unchangeable "مالك — غير محدود" plan
-      const planId = isOwnerUser ? 'plan_owner_unlimited' : (data.planId || 'plan_free');
-      const planSlug = isOwnerUser ? 'owner_unlimited' : (data.planSlug || 'free');
+    const raw = localStorage.getItem(`sawwiha_active_sub_${user.uid}`);
+    if (raw) {
+      localSub = JSON.parse(raw);
+    }
+  } catch {}
 
-      const ownerSub = isOwnerUser
-        ? {
-            id: `sub_owner_${user.uid}`,
-            userId: user.uid,
-            userEmail: user.email || PLATFORM_OWNER_EMAIL,
-            planId: 'plan_owner_unlimited',
-            planSlug: 'owner_unlimited',
-            planName: 'مالك — غير محدود',
-            status: 'active' as const,
-            startDate: new Date().toISOString(),
-            endDate: null,
-            provider: 'manual_owner_grant' as const,
-            notes: 'خطة المالك غير المحدودة الرسمية للمنصة',
-            updatedAt: new Date().toISOString(),
-            updatedBy: user.uid,
+  // 2. Fetch server-persisted user profile & subscription
+  let serverProfile: any = null;
+  let serverSub: UserSubscription | null = null;
+  try {
+    const res = await fetch(`/api/user/profile/${user.uid}`);
+    if (res.ok) {
+      const sJson = await res.json();
+      serverProfile = sJson.profile;
+      serverSub = sJson.subscription;
+    }
+  } catch (err) {
+    console.warn('Notice querying server profile:', err);
+  }
+
+  try {
+    let existingData: UserProfile | null = null;
+    try {
+      const existingSnap = await getDoc(userRef);
+      if (existingSnap.exists()) {
+        existingData = existingSnap.data() as UserProfile;
+      }
+    } catch (firestoreErr) {
+      console.warn('Notice reading user profile from Firestore:', firestoreErr);
+    }
+
+    const data = existingData || serverProfile || {};
+    const finalRole: 'owner' | 'user' = isOwnerUser ? 'owner' : (data.role || 'user');
+
+    // 3. Resolve active subscription
+    let resolvedSub: UserSubscription | null = null;
+
+    if (isOwnerUser) {
+      resolvedSub = {
+        id: `sub_owner_${user.uid}`,
+        userId: user.uid,
+        userEmail: user.email || PLATFORM_OWNER_EMAIL,
+        planId: 'plan_owner_unlimited',
+        planSlug: 'owner_unlimited',
+        planName: 'مالك — غير محدود',
+        status: 'active' as const,
+        startDate: new Date().toISOString(),
+        endDate: null,
+        provider: 'manual_owner_grant' as const,
+        notes: 'خطة المالك غير المحدودة الرسمية للمنصة',
+        updatedAt: new Date().toISOString(),
+        updatedBy: user.uid,
+      };
+    } else {
+      // Prioritize freshest valid subscription
+      const candidates = [data.subscription, serverSub, localSub].filter(Boolean) as UserSubscription[];
+      for (const cand of candidates) {
+        if (cand && cand.status === 'active' && cand.planId) {
+          if (cand.endDate && new Date(cand.endDate).getTime() < Date.now()) {
+            cand.status = 'expired';
+          } else {
+            resolvedSub = cand;
+            break;
           }
-        : data.subscription;
+        }
+      }
+    }
 
+    const planId = isOwnerUser
+      ? 'plan_owner_unlimited'
+      : (resolvedSub?.planId || data.planId || 'plan_free');
+    const planSlug = isOwnerUser
+      ? 'owner_unlimited'
+      : (resolvedSub?.planSlug || data.planSlug || 'free');
+
+    const updatedProfile: UserProfile = {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName || data.displayName || (isOwnerUser ? 'مالك سَوّيها' : 'مستخدم سَوّيها'),
+      photoURL: user.photoURL || data.photoURL || null,
+      role: finalRole,
+      status: data.status || 'active',
+      planId,
+      planSlug,
+      subscription: resolvedSub,
+      createdAt: data.createdAt || new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+    };
+
+    // 4. Try updating Firestore profile
+    try {
       await setDoc(
         userRef,
         {
+          ...updatedProfile,
           lastLoginAt: serverTimestamp(),
-          displayName: user.displayName || data.displayName || (isOwnerUser ? 'مالك سَوّيها' : 'مستخدم سَوّيها'),
-          photoURL: user.photoURL || data.photoURL || null,
-          role: finalRole,
-          status: data.status || 'active',
-          planId,
-          planSlug,
-          ...(ownerSub ? { subscription: ownerSub } : {}),
         },
         { merge: true }
       );
-      return {
-        ...data,
-        role: finalRole,
-        status: data.status || 'active',
-        planId,
-        planSlug,
-        subscription: ownerSub,
-        displayName: user.displayName || data.displayName || (isOwnerUser ? 'مالك سَوّيها' : 'مستخدم سَوّيها'),
-        lastLoginAt: new Date().toISOString(),
-      };
-    } else {
-      const ownerSub = isOwnerUser
-        ? {
-            id: `sub_owner_${user.uid}`,
-            userId: user.uid,
-            userEmail: user.email || PLATFORM_OWNER_EMAIL,
-            planId: 'plan_owner_unlimited',
-            planSlug: 'owner_unlimited',
-            planName: 'مالك — غير محدود',
-            status: 'active' as const,
-            startDate: new Date().toISOString(),
-            endDate: null,
-            provider: 'manual_owner_grant' as const,
-            notes: 'خطة المالك غير المحدودة الرسمية للمنصة',
-            updatedAt: new Date().toISOString(),
-            updatedBy: user.uid,
-          }
-        : null;
-
-      const newProfile: UserProfile = {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName || (isOwnerUser ? 'مالك سَوّيها' : 'مستخدم سَوّيها'),
-        photoURL: user.photoURL || null,
-        role: isOwnerUser ? 'owner' : 'user',
-        status: 'active',
-        planId: isOwnerUser ? 'plan_owner_unlimited' : 'plan_free',
-        planSlug: isOwnerUser ? 'owner_unlimited' : 'free',
-        subscription: ownerSub,
-        createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString(),
-      };
-      await setDoc(userRef, newProfile);
-      return newProfile;
+    } catch (setDocErr) {
+      console.warn('Notice updating Firestore user document:', setDocErr);
     }
+
+    // 5. Sync to server API
+    try {
+      await fetch('/api/user/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedProfile),
+      });
+    } catch {}
+
+    // 6. Update local backup if subscription exists
+    if (resolvedSub) {
+      try {
+        localStorage.setItem(`sawwiha_active_sub_${user.uid}`, JSON.stringify(resolvedSub));
+      } catch {}
+    }
+
+    return updatedProfile;
   } catch (error) {
-    console.warn('Could not sync user profile to Firestore (using fallback auth record):', error);
+    console.warn('Could not sync user profile to Firestore (using fallback record):', error);
     return {
       uid: user.uid,
       email: user.email,
@@ -128,6 +164,9 @@ export async function syncUserProfile(user: User): Promise<UserProfile> {
       photoURL: user.photoURL || null,
       role: isOwnerUser ? 'owner' : 'user',
       status: 'active',
+      planId: isOwnerUser ? 'plan_owner_unlimited' : (serverSub?.planId || localSub?.planId || 'plan_free'),
+      planSlug: isOwnerUser ? 'owner_unlimited' : (serverSub?.planSlug || localSub?.planSlug || 'free'),
+      subscription: isOwnerUser ? null : (serverSub || localSub),
     };
   }
 }

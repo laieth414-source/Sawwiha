@@ -1,0 +1,35 @@
+[
+  {
+    "id": "code_SW_PRO_XL4N_7D4C",
+    "code": "SW-PRO-XL4N-7D4C",
+    "planId": "plan_pro",
+    "planName": "خطة المحترفين",
+    "planSlug": "pro",
+    "durationMonths": 1,
+    "durationLabel": "شهر واحد",
+    "status": "redeemed",
+    "createdAt": "2026-09-21T09:14:44.804Z",
+    "createdBy": "المنصة",
+    "redeemedBy": "fE4WPqYneXcOmo7FulZdayOUASG2",
+    "redeemedByEmail": "fjskjgfrkjgfj@gmail.com",
+    "redeemedAt": "2026-09-21T09:14:44.804Z",
+    "expiresAt": "2026-10-21T09:14:44.804Z"
+  },
+  {
+    "id": "code_SW_PRO_T6EH_EMLH",
+    "code": "SW-PRO-T6EH-EMLH",
+    "planId": "plan_pro",
+    "planName": "المحترف (Pro)",
+    "planSlug": "pro",
+    "durationMonths": 1,
+    "durationLabel": "شهر واحد (30 يوماً)",
+    "status": "unused",
+    "createdAt": "2026-09-21T09:16:45.267Z",
+    "createdBy": "laieth772@gmail.com",
+    "redeemedBy": null,
+    "redeemedByEmail": null,
+    "redeemedAt": null,
+    "expiresAt": null,
+    "notes": null
+  }
+]

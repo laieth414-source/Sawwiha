@@ -1,7 +1,85 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isPlatformOwner() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'laieth772@gmail.com' ||
+        request.auth.uid == 'C0Kdkaq8hoMfRwuK6BEY1iLcFjK2'
+      );
+    }
+
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Plans: Anyone can view active plans; only owner can modify
+    match /plans/{planId} {
+      allow read: if true;
+      allow write: if isPlatformOwner();
+    }
+
+    // Users: Users can read and update their own document; owner has full access
+    match /users/{userId} {
+      allow read: if isUser(userId) || isPlatformOwner();
+      allow create: if isUser(userId) || isPlatformOwner();
+      allow update: if isUser(userId) || isPlatformOwner();
+      allow delete: if isPlatformOwner();
+    }
+
+    // Subscriptions: User can view and record their subscription; owner full access
+    match /subscriptions/{subId} {
+      allow read: if isPlatformOwner() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isPlatformOwner() || (isAuthenticated() && request.resource.data.userId == request.auth.uid);
+      allow update: if isPlatformOwner() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow delete: if isPlatformOwner();
+    }
+
+    // Subscription Voucher Codes:
+    // Only owner can generate or delete codes.
+    // Authenticated users can read/query codes to verify them.
+    // Authenticated users can ONLY update an unused code to redeem it for themselves.
+    match /subscription_codes/{codeId} {
+      allow read: if isAuthenticated();
+      allow create: if isPlatformOwner();
+      allow delete: if isPlatformOwner();
+      allow update: if isPlatformOwner() || (
+        isAuthenticated() &&
+        resource.data.status == 'unused' &&
+        request.resource.data.status == 'redeemed' &&
+        request.resource.data.redeemedBy == request.auth.uid &&
+        request.resource.data.code == resource.data.code &&
+        request.resource.data.planId == resource.data.planId
+      );
+    }
+
+    // Projects:
+    match /projects/{projectId} {
+      allow read: if isPlatformOwner() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isPlatformOwner() || (isAuthenticated() && request.resource.data.userId == request.auth.uid);
+      allow update: if isPlatformOwner() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow delete: if isPlatformOwner() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+    }
+
+    // Settings:
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isPlatformOwner();
+    }
+
+    // Audit logs:
+    match /audit_logs/{logId} {
+      allow read: if isPlatformOwner();
+      allow create: if isAuthenticated();
+      allow update, delete: if isPlatformOwner();
+    }
+
+    // Diagnostics connection test:
+    match /_connection_test/{testId} {
       allow read, write: if true;
     }
   }

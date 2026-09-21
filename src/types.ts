@@ -60,6 +60,11 @@ export interface AIChatMessage {
 export interface SiteAnalysis {
   siteType: string;
   targetAudience: string;
+  projectType?: string;
+  industry?: string;
+  primaryGoal?: string;
+  dataModels?: string[];
+  navigationType?: string;
   pages: {
     id: string;
     title: string;

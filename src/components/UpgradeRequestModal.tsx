@@ -27,7 +27,7 @@ export const UpgradeRequestModal: React.FC<UpgradeRequestModalProps> = ({
   onClose,
   targetPlan,
 }) => {
-  const { user, userProfile, isOwner, openAuthModal } = useAuth();
+  const { user, userProfile, isOwner, openAuthModal, refreshUserProfile } = useAuth();
   const [requested, setRequested] = useState(false);
   const [loading, setLoading] = useState(false);
   const [ownerActivating, setOwnerActivating] = useState(false);
@@ -61,6 +61,11 @@ export const UpgradeRequestModal: React.FC<UpgradeRequestModalProps> = ({
         rawCode: voucherCode.trim(),
         userId: user.uid,
         userEmail: user.email || 'user',
+      });
+      await refreshUserProfile({
+        planId: res.plan.id,
+        planSlug: res.plan.slug,
+        subscription: res.subscription,
       });
       setVoucherSuccess(res);
       setVoucherCode('');

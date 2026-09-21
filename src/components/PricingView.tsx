@@ -40,6 +40,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
     openAuthModal,
     openUpgradeModal,
     userUsage,
+    refreshUserProfile,
   } = useAuth();
 
   // Voucher redemption state
@@ -71,6 +72,12 @@ export const PricingView: React.FC<PricingViewProps> = ({
         rawCode: voucherCodeInput.trim(),
         userId: user.uid,
         userEmail: user.email || 'user@sawwiha.local',
+      });
+
+      await refreshUserProfile({
+        planId: result.plan.id,
+        planSlug: result.plan.slug,
+        subscription: result.subscription,
       });
 
       setRedeemSuccess(result);
