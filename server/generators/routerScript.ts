@@ -846,7 +846,45 @@ export function getUniversalRouterScript(options: RouterScriptOptions = {}): str
           }
           window.scrollTo({ top: 0, behavior: 'smooth' });
           updateActiveNavLinks(path);
-          notifyRouteChanged(path);
+
+          var norm = path.toLowerCase();
+          var extra = null;
+          if (norm.startsWith('/menu/item/') || norm.startsWith('/item/') || norm.startsWith('/dish/') || norm.startsWith('/product/') || isUuid(norm.replace(/^\//, ''))) {
+            var rawId = norm.split('/').pop() || '';
+            var resolved = resolveItem(rawId);
+            if (resolved) {
+              var cleanSlug = resolved.slug || resolved.id;
+              var cleanRoute = (norm.startsWith('/menu') ? '/menu/item/' : '/item/') + cleanSlug;
+              extra = {
+                item: {
+                  id: resolved.id,
+                  slug: cleanSlug,
+                  title: resolved.title,
+                  price: resolved.price,
+                  category: resolved.category,
+                  categorySlug: resolved.categorySlug,
+                  image: resolved.image,
+                  desc: resolved.desc,
+                  badge: resolved.badge,
+                  rating: resolved.rating
+                },
+                sectionTitle: resolved.title,
+                cleanRoute: cleanRoute,
+                routeType: 'item'
+              };
+            }
+          } else if (norm.startsWith('/menu')) {
+            extra = {
+              routeType: 'menu',
+              sectionTitle: norm === '/menu/food' ? 'المأكولات والأطباق' : (norm === '/menu/drinks' ? 'المشروبات والعصائر' : 'قائمة الطعام والضيافة')
+            };
+          } else if (norm === '/about') {
+            extra = { routeType: 'about', sectionTitle: 'من نحن وقصتنا' };
+          } else if (norm === '/contact') {
+            extra = { routeType: 'contact', sectionTitle: 'الحجز والتواصل' };
+          }
+
+          notifyRouteChanged(path, extra);
           return;
         }
 
@@ -875,14 +913,22 @@ export function getUniversalRouterScript(options: RouterScriptOptions = {}): str
       }
 
       // 10. Notify Parent Window (Studio / Embed)
-      function notifyRouteChanged(path) {
+      function notifyRouteChanged(path, extra) {
         try {
           if (window.parent && window.parent !== window) {
-            window.parent.postMessage({
+            var payload = {
               type: 'SAWWIHA_ROUTE_CHANGED',
               route: path,
               url: window.location.href
-            }, '*');
+            };
+            if (extra) {
+              for (var k in extra) {
+                if (Object.prototype.hasOwnProperty.call(extra, k)) {
+                  payload[k] = extra[k];
+                }
+              }
+            }
+            window.parent.postMessage(payload, '*');
           }
         } catch(e) {}
       }

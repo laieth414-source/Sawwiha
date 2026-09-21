@@ -31,7 +31,19 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Utensils,
+  Coffee,
+  Home,
+  Menu as MenuIcon,
+  Tag,
 } from 'lucide-react';
+import {
+  StudioItemData,
+  STUDIO_MAIN_SECTIONS,
+  STUDIO_FEATURED_DISHES,
+  resolveDishOrProduct,
+  getCleanDisplayRoute,
+} from '../utils/dishCatalog';
 import { ProjectItem, ProjectVersion, AIChatMessage, GeneratedCode, PlatformAiEngine } from '../types';
 import { requestAIEdit, requestAIRepair } from '../services/aiBuilderService';
 import {
@@ -112,6 +124,7 @@ export const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({
   // Phase 4 & Phase 7: Project State, Publish, GitHub, ZIP & Settings Modals
   const [currentProject, setCurrentProject] = useState<ProjectItem>(project);
   const [currentIframeRoute, setCurrentIframeRoute] = useState<string>('/');
+  const [activeDish, setActiveDish] = useState<StudioItemData | null>(null);
   const [showPublishModal, setShowPublishModal] = useState<boolean>(false);
   const [showGitHubModal, setShowGitHubModal] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
@@ -123,11 +136,52 @@ export const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({
       if (e.data && e.data.type === 'SAWWIHA_ROUTE_CHANGED') {
         const nextRoute = e.data.route || e.data.path || '/';
         setCurrentIframeRoute(nextRoute);
+
+        // 1. If the iframe passed authentic item metadata directly
+        if (e.data.item) {
+          setActiveDish(e.data.item);
+        } else {
+          // 2. Resolve via authentic catalog and slug (guarantees NO raw UUID is displayed)
+          const resolved = resolveDishOrProduct(nextRoute);
+          setActiveDish(resolved);
+        }
       }
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, []);
+
+  // Switch between sections and dishes with guaranteed isolation & route dispatch
+  const handleSwitchSection = useCallback((targetPath: string) => {
+    setCurrentIframeRoute(targetPath);
+    const resolved = resolveDishOrProduct(targetPath);
+    setActiveDish(resolved);
+
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: 'SAWWIHA_NAVIGATE_TO', path: targetPath, route: targetPath },
+        '*'
+      );
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: 'NAVIGATE', path: targetPath, route: targetPath },
+        '*'
+      );
+    } catch (err) {
+      console.warn('Navigation postMessage error:', err);
+    }
+  }, []);
+
+  // Synchronize active route whenever iframe finishes loading
+  const handleIframeLoad = useCallback(() => {
+    if (currentIframeRoute && currentIframeRoute !== '/') {
+      try {
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: 'SAWWIHA_NAVIGATE_TO', path: currentIframeRoute, route: currentIframeRoute },
+          '*'
+        );
+      } catch (e) {}
+    }
+  }, [currentIframeRoute]);
 
   useEffect(() => {
     setCurrentProject(project);
@@ -892,8 +946,8 @@ export const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({
                     </button>
                   </div>
 
-                  <div className="flex-1 px-3 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-600 font-mono truncate max-w-[340px] flex items-center justify-between" dir="ltr">
-                    <span className="truncate">https://sawwiha.app/preview/{project.slug || 'my-project'}{currentIframeRoute === '/' ? '' : currentIframeRoute}</span>
+                  <div className="flex-1 px-3 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-600 font-mono truncate max-w-[360px] flex items-center justify-between shadow-xs" dir="ltr">
+                    <span className="truncate">https://sawwiha.app/preview/{project.slug || 'my-project'}{getCleanDisplayRoute(currentIframeRoute, activeDish) === '/' ? '' : getCleanDisplayRoute(currentIframeRoute, activeDish)}</span>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
@@ -911,12 +965,120 @@ export const ProjectStudioView: React.FC<ProjectStudioViewProps> = ({
                   </div>
                 </div>
 
+                {/* Interactive Section Switcher Navigation Bar */}
+                <div className="bg-slate-100/90 border-b border-slate-200 px-3 py-1.5 flex items-center justify-between gap-2 overflow-x-auto select-none shrink-0" dir="rtl">
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] font-bold text-slate-500 ml-1">الأقسام:</span>
+                    {STUDIO_MAIN_SECTIONS.map((sec) => {
+                      const isActive =
+                        sec.path === '/'
+                          ? currentIframeRoute === '/'
+                          : currentIframeRoute.startsWith(sec.path);
+                      return (
+                        <button
+                          key={sec.id}
+                          type="button"
+                          onClick={() => handleSwitchSection(sec.path)}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer whitespace-nowrap ${
+                            isActive
+                              ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                              : 'bg-white text-slate-600 hover:bg-slate-200/80 hover:text-slate-900 border border-slate-200/60'
+                          }`}
+                        >
+                          {sec.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="h-4 w-px bg-slate-300 mx-1 shrink-0" />
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] font-bold text-emerald-800 ml-1 flex items-center gap-1">
+                      <Tag className="w-3 h-3 text-emerald-600" />
+                      أطباق بالـ Slug:
+                    </span>
+                    {STUDIO_FEATURED_DISHES.map((dish) => {
+                      const isActive =
+                        activeDish?.slug === dish.slug ||
+                        currentIframeRoute.includes(`/item/${dish.slug}`);
+                      return (
+                        <button
+                          key={dish.id}
+                          type="button"
+                          onClick={() => handleSwitchSection(dish.path)}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                            isActive
+                              ? 'bg-slate-900 text-white font-bold shadow-xs'
+                              : 'bg-white/80 text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-200/80'
+                          }`}
+                          title={`فتح ${dish.label} عبر معرف الـ Slug: ${dish.slug}`}
+                        >
+                          <span>{dish.label}</span>
+                          <span className="text-[9px] opacity-70 font-mono">({dish.slug})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Active Real Dish / Product Metadata Banner (NO UUIDs!) */}
+                {activeDish && (
+                  <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-b border-emerald-200/80 px-3 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0 select-none" dir="rtl">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img
+                        src={activeDish.image}
+                        alt={activeDish.title}
+                        referrerPolicy="no-referrer"
+                        className="w-9 h-9 rounded-lg object-cover shadow-xs border border-emerald-300/50 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-xs font-black text-slate-900 truncate">{activeDish.title}</h4>
+                          <span className="text-[10px] font-mono bg-slate-900 text-emerald-400 px-1.5 py-0.5 rounded font-bold tracking-tight">
+                            slug: {activeDish.slug}
+                          </span>
+                          <span className="text-[11px] font-black text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                            {activeDish.price}
+                          </span>
+                          {activeDish.badge && (
+                            <span className="text-[9px] font-bold text-amber-800 bg-amber-100/80 px-1.5 py-0.5 rounded">
+                              {activeDish.badge}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 truncate max-w-md hidden sm:block">
+                          {activeDish.desc}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 mr-auto">
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchSection('/menu/food')}
+                        className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 bg-white hover:bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 transition-colors cursor-pointer"
+                      >
+                        ← قائمة المأكولات
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchSection('/')}
+                        className="text-[10px] font-bold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 px-2 py-1 rounded-md border border-slate-200 transition-colors cursor-pointer"
+                      >
+                        الرئيسية
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Sandboxed Live iframe */}
                 <div className="flex-1 w-full h-full bg-white relative overflow-hidden">
                   <iframe
                     ref={iframeRef}
                     title="معاينة موقع سَوّيها الحي"
                     srcDoc={currentHtml}
+                    onLoad={handleIframeLoad}
                     sandbox="allow-scripts allow-forms allow-same-origin"
                     className="w-full h-full border-0"
                   />
