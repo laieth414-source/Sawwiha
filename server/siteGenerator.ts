@@ -267,6 +267,96 @@ export function buildComprehensiveSiteHtml(data: SiteGenerationInput): string {
   // Build Dynamic Sections HTML
   const sectionsHtml = buildDynamicSections(customSections, images.items, primaryColor);
 
+  // For restaurant sites, build prominent Chef's Featured Dishes section
+  const restaurantDishesHtml = archetype === 'restaurant_cafe' ? `
+    <section id="featured-dishes" class="py-16 sm:py-20 bg-white border-y border-slate-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 space-y-10">
+        <div class="flex items-end justify-between flex-wrap gap-4">
+          <div class="space-y-2">
+            <span class="text-xs font-bold text-amber-600 uppercase tracking-wider">مختارات الشيف اليومية</span>
+            <h2 class="text-2xl sm:text-4xl font-black text-slate-900">أبرز الأطباق والمأكولات الأكثر طلباً</h2>
+            <p class="text-xs sm:text-sm text-slate-500">نكهات بغدادية وشرقية أصيلة محضرة على أيدي أمهر الطهاة يومياً</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <a href="/menu/food" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all">
+              استعراض المأكولات ←
+            </a>
+            <a href="/menu" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all">
+              القائمة الكاملة
+            </a>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div class="bg-slate-50 rounded-3xl p-5 border border-slate-200 shadow-xs hover:shadow-lg transition-all flex flex-col justify-between group">
+            <div>
+              <a href="/menu/item/mashawi" class="block aspect-4/3 rounded-2xl overflow-hidden mb-4 bg-slate-200 relative cursor-pointer">
+                <img src="https://images.unsplash.com/photo-1544025162-d76694265947?w=800&auto=format&fit=crop&q=80" alt="صينية مشاوي مشكلة ملكية" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                <span class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-black shadow-md">الأكثر طلباً</span>
+              </a>
+              <div class="flex items-center justify-between mb-2">
+                <a href="/menu/item/mashawi" class="font-black text-slate-900 text-base sm:text-lg hover:text-emerald-600 transition-colors cursor-pointer">صينية مشاوي مشكلة ملكية</a>
+                <span class="font-black text-emerald-600 text-sm sm:text-base">22,000 د.ع</span>
+              </div>
+              <p class="text-xs text-slate-500 mb-4 leading-relaxed">كباب غنم بلدي، تكة لحم، شيش طاووق مع الخبز الحار والمقبلات والبيواز.</p>
+            </div>
+            <div class="pt-3 border-t border-slate-200/80 flex items-center gap-2">
+              <a href="/menu/item/mashawi" class="flex-1 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 font-bold text-xs text-center border border-slate-200 transition-all cursor-pointer">
+                عرض التفاصيل والمكونات ←
+              </a>
+              <button onclick="showToast('تمت إضافة صينية المشاوي إلى طلبك'); if(typeof addToCart==='function') addToCart('صينية مشاوي مشكلة', '22,000 د.ع');" class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all cursor-pointer">
+                أضف للطلب
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-slate-50 rounded-3xl p-5 border border-slate-200 shadow-xs hover:shadow-lg transition-all flex flex-col justify-between group">
+            <div>
+              <a href="/menu/item/kabab" class="block aspect-4/3 rounded-2xl overflow-hidden mb-4 bg-slate-200 relative cursor-pointer">
+                <img src="https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&auto=format&fit=crop&q=80" alt="كباب لحم عراقي أصيل" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                <span class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-amber-600 text-white text-[10px] font-black shadow-md">خلطة الشيف</span>
+              </a>
+              <div class="flex items-center justify-between mb-2">
+                <a href="/menu/item/kabab" class="font-black text-slate-900 text-base sm:text-lg hover:text-emerald-600 transition-colors cursor-pointer">كباب لحم عراقي أصيل</a>
+                <span class="font-black text-emerald-600 text-sm sm:text-base">14,000 د.ع</span>
+              </div>
+              <p class="text-xs text-slate-500 mb-4 leading-relaxed">أسياخ كباب متبلة بالبهارات الخاصة ومشوية على الجمر الطبيعي مع الصمون الحار.</p>
+            </div>
+            <div class="pt-3 border-t border-slate-200/80 flex items-center gap-2">
+              <a href="/menu/item/kabab" class="flex-1 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 font-bold text-xs text-center border border-slate-200 transition-all cursor-pointer">
+                عرض التفاصيل والمكونات ←
+              </a>
+              <button onclick="showToast('تمت إضافة الكباب العراقي إلى طلبك'); if(typeof addToCart==='function') addToCart('كباب لحم عراقي', '14,000 د.ع');" class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all cursor-pointer">
+                أضف للطلب
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-slate-50 rounded-3xl p-5 border border-slate-200 shadow-xs hover:shadow-lg transition-all flex flex-col justify-between group">
+            <div>
+              <a href="/menu/item/appetizers" class="block aspect-4/3 rounded-2xl overflow-hidden mb-4 bg-slate-200 relative cursor-pointer">
+                <img src="https://images.unsplash.com/photo-1540420773420-3366772f4999?w=800&auto=format&fit=crop&q=80" alt="تشكيلة مقبلات شرقية فاخرة" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                <span class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-emerald-700 text-white text-[10px] font-black shadow-md">طازج يومياً</span>
+              </a>
+              <div class="flex items-center justify-between mb-2">
+                <a href="/menu/item/appetizers" class="font-black text-slate-900 text-base sm:text-lg hover:text-emerald-600 transition-colors cursor-pointer">تشكيلة مقبلات شرقية فاخرة</a>
+                <span class="font-black text-emerald-600 text-sm sm:text-base">6,000 د.ع</span>
+              </div>
+              <p class="text-xs text-slate-500 mb-4 leading-relaxed">حمص بطحينة، متبل باذنجان مدخن، تبولة طازجة وبابا غنوج بدبس الرمان.</p>
+            </div>
+            <div class="pt-3 border-t border-slate-200/80 flex items-center gap-2">
+              <a href="/menu/item/appetizers" class="flex-1 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 font-bold text-xs text-center border border-slate-200 transition-all cursor-pointer">
+                عرض التفاصيل والمكونات ←
+              </a>
+              <button onclick="showToast('تمت إضافة المقبلات إلى طلبك'); if(typeof addToCart==='function') addToCart('تشكيلة مقبلات شرقية', '6,000 د.ع');" class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all cursor-pointer">
+                أضف للطلب
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>` : '';
+
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -289,6 +379,8 @@ export function buildComprehensiveSiteHtml(data: SiteGenerationInput): string {
 
   <main class="flex-1">
     ${heroHtml}
+
+    ${restaurantDishesHtml}
 
     ${interactiveWidget.markup}
 
